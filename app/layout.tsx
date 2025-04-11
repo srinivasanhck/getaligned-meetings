@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/ui/toast"
 import { AuthProvider } from "@/contexts/AuthContext"
 import AuthLoadingScreen from "@/components/auth/AuthLoadingScreen"
 import "./globals.css"
+import { Suspense } from "react"
 
 // Properly initialize the Figtree font
 const figtree = Figtree({
@@ -22,6 +23,16 @@ export const metadata: Metadata = {
   },
 }
 
+// Simple loading fallback component (customize as needed)
+function AuthLoadingFallback() {
+  return (
+    <div className="flex h-screen w-full items-center justify-center">
+      {/* You can use a spinner or a minimal layout */}
+      <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
+    </div>
+  );
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -32,11 +43,13 @@ export default function RootLayout({
       <body className={figtree.className} suppressHydrationWarning>
         <ReduxProvider>
           <ToastProvider>
-            <AuthProvider>
-              <AuthLoadingScreen>
-                {children}
-              </AuthLoadingScreen>
-            </AuthProvider>
+            <Suspense fallback={<AuthLoadingFallback />}>
+              <AuthProvider>
+                <AuthLoadingScreen>
+                  {children}
+                </AuthLoadingScreen>
+              </AuthProvider>
+            </Suspense>
           </ToastProvider>
         </ReduxProvider>
       </body>
