@@ -2,19 +2,8 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
-import {
-  CheckCircle,
-  Circle,
-  Play,
-  AlertCircle,
-  Loader,
-  ChevronDown,
-  ChevronRight,
-  Edit,
-  Save,
-  X,
-  Plus,
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react"
+import {CheckCircle, Circle, Play, AlertCircle,  Loader,  ChevronDown,  ChevronRight, Edit, Save, X, Plus, ChevronLeft,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchMeetingVideo } from "@/services/videoService"
@@ -101,29 +90,29 @@ interface CollapsibleSectionProps {
   onCancel?: () => void
 }
 
-const CollapsibleSection = ({
+const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   title,
   children,
-  defaultOpen = false,
+  defaultOpen = true,
   rating,
   onRatingChange,
   isEditing = false,
   onEditToggle,
   onSave,
   onCancel,
-}: CollapsibleSectionProps) => {
+}) => {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
-    <div className="border border-gray-100 rounded-md overflow-hidden mb-3">
-      <div className="flex items-center justify-between p-3 bg-gray-50 group">
+    <div className=" overflow-hidden">
+      <div className="flex items-center justify-between p-1 group">
         <button className="flex items-center flex-grow text-left" onClick={() => setIsOpen(!isOpen)}>
           {isOpen ? (
             <ChevronDown className="h-4 w-4 text-gray-500 mr-2" />
           ) : (
             <ChevronRight className="h-4 w-4 text-gray-500 mr-2" />
           )}
-          <span className="font-medium text-gray-800 text-[14px]">{title}</span>
+          <span className="font-semibold text-gray-800 text-[14px]">{title}</span>
         </button>
 
         <div className="flex items-center space-x-2">
@@ -197,20 +186,34 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
   const [taskStatus, setTaskStatus] = useState<TaskStatus>({})
   const [localTasksAssigned, setLocalTasksAssigned] = useState(details.tasksAssigned || [])
   const [editedSalesEvaluation, setEditedSalesEvaluation] = useState<any>(null)
-  const [editingSectionKey, setEditingSectionKey] = useState<string | null>(null)
+  const [editingSectionPath, setEditingSectionPath] = useState<string | null>(null)
   const [isSavingEvaluation, setIsSavingEvaluation] = useState(false)
   const [evaluationError, setEvaluationError] = useState<string | null>(null)
   const { showToast } = useToast()
 
-  const { meetingSummary, salesEvaluation = {}, keywords = [], listSummary = [] } = details
+  // New state for active tab
+  const [activeTab, setActiveTab] = useState<string | null>(null)
+
+  const { salesEvaluation = {}, keywords = [], listSummary = [] } = details
   const meetingId = details.meeting?.meetingUniqueId
 
-  // Initialize edited sales evaluation data
+  // Add these new states after the other state declarations in the SummaryTab component
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+  const tabsContainerRef = useRef<HTMLDivElement>(null)
+
+  // Initialize edited sales evaluation data and set the first tab as active
   useEffect(() => {
     if (salesEvaluation && Object.keys(salesEvaluation).length > 0) {
       setEditedSalesEvaluation(JSON.parse(JSON.stringify(salesEvaluation)))
+
+      // Set the first category as the active tab
+      const categories = Object.keys(salesEvaluation)
+      if (categories.length > 0 && !activeTab) {
+        setActiveTab(categories[0])
+      }
     }
-  }, [salesEvaluation])
+  }, [salesEvaluation, activeTab])
 
   // Format evaluation key for display
   const formatEvaluationKey = (key: string): string => {
@@ -375,75 +378,121 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
     }
   }
 
-  // Handle rating change
-  const handleRatingChange = (sectionKey: string, newRating: number) => {
+  // Handle rating change for nested structure
+  const handleRatingChange = (path: string, newRating: number) => {
     if (!editedSalesEvaluation) return
 
-    setEditedSalesEvaluation((prev: any) => ({
-      ...prev,
-      [sectionKey]: {
-        ...prev[sectionKey],
-        rating: newRating,
-      },
-    }))
-  }
-
-  // Handle feedback change
-  const handleFeedbackChange = (sectionKey: string, index: number, newValue: string) => {
-    if (!editedSalesEvaluation) return
+    // Parse the path (e.g., "customerQualification.identifiedPainPoints")
+    const pathParts = path.split(".")
 
     setEditedSalesEvaluation((prev: any) => {
-      const updatedValues = [...prev[sectionKey].value]
+      const newState = { ...prev }
+      let current = newState
+
+      // Navigate to the parent object
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        if (!current[pathParts[i]]) current[pathParts[i]] = {}
+        current = current[pathParts[i]]
+      }
+
+      // Update the rating
+      const lastPart = pathParts[pathParts.length - 1]
+      if (!current[lastPart]) current[lastPart] = {}
+      current[lastPart].rating = newRating
+
+      return newState
+    })
+  }
+
+  // Handle feedback change for nested structure
+  const handleFeedbackChange = (path: string, index: number, newValue: string) => {
+    if (!editedSalesEvaluation) return
+
+    // Parse the path
+    const pathParts = path.split(".")
+
+    setEditedSalesEvaluation((prev: any) => {
+      const newState = { ...prev }
+      let current = newState
+
+      // Navigate to the parent object
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        if (!current[pathParts[i]]) current[pathParts[i]] = {}
+        current = current[pathParts[i]]
+      }
+
+      // Update the value
+      const lastPart = pathParts[pathParts.length - 1]
+      if (!current[lastPart]) current[lastPart] = { value: [] }
+      if (!current[lastPart].value) current[lastPart].value = []
+
+      const updatedValues = [...current[lastPart].value]
       updatedValues[index] = newValue
+      current[lastPart].value = updatedValues
 
-      return {
-        ...prev,
-        [sectionKey]: {
-          ...prev[sectionKey],
-          value: updatedValues,
-        },
-      }
+      return newState
     })
   }
 
-  // Add new feedback item
-  const handleAddFeedback = (sectionKey: string) => {
+  // Add new feedback item for nested structure
+  const handleAddFeedback = (path: string) => {
     if (!editedSalesEvaluation) return
 
-    setEditedSalesEvaluation((prev: any) => {
-      const updatedValues = [...(prev[sectionKey].value || [])]
-      updatedValues.push("")
+    // Parse the path
+    const pathParts = path.split(".")
 
-      return {
-        ...prev,
-        [sectionKey]: {
-          ...prev[sectionKey],
-          value: updatedValues,
-        },
+    setEditedSalesEvaluation((prev: any) => {
+      const newState = { ...prev }
+      let current = newState
+
+      // Navigate to the parent object
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        if (!current[pathParts[i]]) current[pathParts[i]] = {}
+        current = current[pathParts[i]]
       }
+
+      // Add new feedback item
+      const lastPart = pathParts[pathParts.length - 1]
+      if (!current[lastPart]) current[lastPart] = { value: [] }
+      if (!current[lastPart].value) current[lastPart].value = []
+
+      current[lastPart].value.push("")
+
+      return newState
     })
   }
 
-  // Remove feedback item
-  const handleRemoveFeedback = (sectionKey: string, index: number) => {
+  // Remove feedback item for nested structure
+  const handleRemoveFeedback = (path: string, index: number) => {
     if (!editedSalesEvaluation) return
 
+    // Parse the path
+    const pathParts = path.split(".")
+
     setEditedSalesEvaluation((prev: any) => {
-      const updatedValues = [...prev[sectionKey].value]
+      const newState = { ...prev }
+      let current = newState
+
+      // Navigate to the parent object
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        if (!current[pathParts[i]]) return prev // Path doesn't exist
+        current = current[pathParts[i]]
+      }
+
+      // Remove feedback item
+      const lastPart = pathParts[pathParts.length - 1]
+      if (!current[lastPart] || !current[lastPart].value) return prev
+
+      const updatedValues = [...current[lastPart].value]
       updatedValues.splice(index, 1)
+      current[lastPart].value = updatedValues
 
-      return {
-        ...prev,
-        [sectionKey]: {
-          ...prev[sectionKey],
-          value: updatedValues,
-        },
-      }
+      return newState
     })
   }
 
   // Save evaluation changes
-  const handleSaveEvaluation = async (sectionKey: string) => {
+  const handleSaveEvaluation = async () => {
     if (!meetingId || !editedSalesEvaluation) return
 
     setIsSavingEvaluation(true)
@@ -466,7 +515,7 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
 
       // Update was successful
       showToast("Sales evaluation updated successfully", "success")
-      setEditingSectionKey(null)
+      setEditingSectionPath(null)
     } catch (err) {
       console.error("Failed to update sales evaluation:", err)
       setEvaluationError("Failed to update sales evaluation. Please try again.")
@@ -485,253 +534,370 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
   // Check if salesEvaluation has valid data
   const hasSalesEvaluation = salesEvaluation && Object.keys(salesEvaluation).length > 0
 
-  return (
-    <div className="h-full grid grid-cols-12 gap-6">
-      {/* Left Column - 7/12 width with independent scrolling */}
-      <div className="col-span-7 h-full overflow-y-auto custom-scrollbar p-6 pr-3">
-        <div className="space-y-6">
-          {/* Keywords */}
-          {keywords && Array.isArray(keywords) && keywords.length > 0 && (
-            <div>
-              <h2 className="text-[16px] font-semibold text-black mb-3">Keywords</h2>
-              <div className="flex flex-wrap gap-2">
-                {keywords.map((keyword, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
-                  >
-                    {keyword}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+  // Render a subcategory item
+  const renderSubcategory = (categoryKey: string, subcategoryKey: string, subcategoryData: any) => {
+    const path = `${categoryKey}.${subcategoryKey}`
+    const isEditing = editingSectionPath === path
 
-          {/* Meeting Summary */}
-          {meetingSummary && (
+    return (
+      <CollapsibleSection
+        key={subcategoryKey}
+        title={formatEvaluationKey(subcategoryKey)}
+        defaultOpen={false}
+        rating={subcategoryData.rating ? Math.ceil(subcategoryData.rating) : undefined}
+        onRatingChange={(newRating) => handleRatingChange(path, newRating)}
+        isEditing={isEditing}
+        onEditToggle={() => setEditingSectionPath(path)}
+        onSave={() => handleSaveEvaluation()}
+        onCancel={() => setEditingSectionPath(null)}
+      >
+        {isEditing ? (
+          <div className="space-y-3">
+            <div className="text-sm font-medium text-gray-700 mb-1">Feedback:</div>
+            {subcategoryData.value &&
+              Array.isArray(subcategoryData.value) &&
+              subcategoryData.value.map((item: string, index: number) => (
+                <div key={index} className="flex items-start space-x-2">
+                  <textarea
+                    value={item}
+                    onChange={(e) => handleFeedbackChange(path, index, e.target.value)}
+                    className="flex-1 p-2 border border-gray-300 rounded text-sm min-h-[60px]"
+                    placeholder="Enter feedback"
+                  />
+                  <button
+                    onClick={() => handleRemoveFeedback(path, index)}
+                    className="p-1 text-red-500 hover:text-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            <button
+              onClick={() => handleAddFeedback(path)}
+              className="text-sm text-primary hover:text-primary/80 flex items-center"
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add feedback
+            </button>
+          </div>
+        ) : (
+          subcategoryData.value &&
+          Array.isArray(subcategoryData.value) &&
+          subcategoryData.value.length > 0 && (
             <div>
-              <h2 className="text-[16px] font-semibold text-black mb-3">Meeting Summary</h2>
-              <ul className="space-y-3 list-disc ml-4">
-                {meetingSummary
-                  .split("\n\n")
-                  .filter((para) => para.trim().length > 0)
-                  .map((paragraph, index) => (
-                    <li key={index} className="p-1 rounded-lg text-black text-sm list-none">
-                      {paragraph}
-                    </li>
-                  ))}
+              <span className="text-sm font-medium text-gray-700 block mb-1">Feedback:</span>
+              <ul className="list-disc pl-5 space-y-1">
+                {subcategoryData.value.map((item: string, index: number) => (
+                  <li key={index} className="text-sm text-gray-600">
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
-          )}
+          )
+        )}
+      </CollapsibleSection>
+    )
+  }
 
-          {/* Action Items */}
-          {filteredTasksAssigned.length > 0 && (
+  // Add this function inside the SummaryTab component to check scroll possibility
+  const checkScrollability = () => {
+    if (tabsContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tabsContainerRef.current
+      setCanScrollLeft(scrollLeft > 0)
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 1) // -1 for rounding errors
+    }
+  }
+
+  // Add this effect to check scrollability on mount and when tabs change
+  useLayoutEffect(() => {
+    checkScrollability()
+    // Add resize observer to check when container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      checkScrollability()
+    })
+    
+    if (tabsContainerRef.current) {
+      resizeObserver.observe(tabsContainerRef.current)
+    }
+    
+    return () => {
+      if (tabsContainerRef.current) {
+        resizeObserver.unobserve(tabsContainerRef.current)
+      }
+    }
+  }, [editedSalesEvaluation, activeTab])
+
+  // Add these scroll handler functions
+  const scrollLeft = () => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollBy({ left: -200, behavior: 'smooth' })
+      setTimeout(checkScrollability, 300)
+    }
+  }
+
+  const scrollRight = () => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' })
+      setTimeout(checkScrollability, 300)
+    }
+  }
+
+  // Add this event handler to update scroll indicators when scrolling
+  const handleScroll = () => {
+    checkScrollability()
+  }
+
+  return (
+    <>
+      <div className="h-full grid grid-cols-12 gap-6">
+        {/* Left Column - 7/12 width with independent scrolling */}
+        <div className="col-span-7 h-full overflow-y-auto custom-scrollbar p-6 pr-3">
+          <div className="space-y-6">
+            {/* Keywords */}
+            {keywords && Array.isArray(keywords) && keywords.length > 0 && (
+              <div>
+                <h2 className="text-[16px] font-semibold text-black mb-3">Keywords</h2>
+                <div className="flex flex-wrap gap-2">
+                  {keywords.map((keyword, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Meeting Summary */}
+            {/* List Summary */}
+            {listSummary.length > 0 && (
+              <div>
+                <h2 className="text-[16px] font-semibold text-black mb-3">Meeting Summary</h2>
+                <ul className="space-y-3 list-disc ml-4">
+                  {listSummary.map((point, index) => (
+                    <li key={index} className="p-1 rounded-lg text-black text-sm">
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Action Items */}
+            {filteredTasksAssigned.length > 0 && (
+              <div>
+                <h2 className="text-[16px] font-semibold text-black mb-3">Action Items</h2>
+                {/* <div className="space-y-4"> */}
+                <div className="space-y-4">
+                  {filteredTasksAssigned.map((assignee, index) => (
+                    <div key={index} className="pt-0.5 pb-2 px-4">
+                      <div className="font-semibold text-black mb-2">{assignee.participant}</div>
+                      <ul className="space-y-2">
+                        {/* Active Tasks */}
+                        {assignee.tasks &&
+                          Array.isArray(assignee.tasks) &&
+                          assignee.tasks.map((task, taskIndex) => {
+                            const taskKey = `${assignee.participant}:${task}`
+                            const status = taskStatus[taskKey] || { isCompleted: false, isLoading: false, error: null }
+
+                            return (
+                              <li key={`task-${taskIndex}`} className="flex items-start">
+                                <button
+                                  onClick={() => handleTaskStatusChange(assignee.participant, task, true)}
+                                  className="mr-2 mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary transition-colors"
+                                  disabled={status.isLoading}
+                                >
+                                  {status.isLoading ? (
+                                    <Loader className="h-5 w-5 animate-spin text-primary" />
+                                  ) : (
+                                    <Circle className="h-5 w-5" />
+                                  )}
+                                </button>
+                                <span className="text-sm text-black">{task}</span>
+                              </li>
+                            )
+                          })}
+
+                        {/* Completed Tasks */}
+                        {assignee.completedTasks &&
+                          Array.isArray(assignee.completedTasks) &&
+                          assignee.completedTasks.map((task, taskIndex) => {
+                            const taskKey = `${assignee.participant}:${task}`
+                            const status = taskStatus[taskKey] || { isCompleted: true, isLoading: false, error: null }
+
+                            return (
+                              <li key={`completed-${taskIndex}`} className="flex items-start">
+                                <button
+                                  onClick={() => handleTaskStatusChange(assignee.participant, task, false)}
+                                  className="mr-2 mt-0.5 flex-shrink-0 text-primary hover:text-primary/80 transition-colors"
+                                  disabled={status.isLoading}
+                                >
+                                  {status.isLoading ? (
+                                    <Loader className="h-5 w-5 animate-spin text-primary" />
+                                  ) : (
+                                    <CheckCircle className="h-5 w-5" />
+                                  )}
+                                </button>
+                                <span className="text-sm line-through text-gray-400">{task}</span>
+                              </li>
+                            )
+                          })}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column - 5/12 width with independent scrolling */}
+        <div className="col-span-5 h-full overflow-y-auto custom-scrollbar p-[4px] pl-3">
+          <div className="space-y-6">
+            {/* Video Player */}
             <div>
-              <h2 className="text-[16px] font-semibold text-black mb-3">Action Items</h2>
-              <div className="space-y-4">
-                {filteredTasksAssigned.map((assignee, index) => (
-                  <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                    <div className="font-semibold text-black mb-2">{assignee.participant}</div>
-                    <ul className="space-y-2">
-                      {/* Active Tasks */}
-                      {assignee.tasks &&
-                        Array.isArray(assignee.tasks) &&
-                        assignee.tasks.map((task, taskIndex) => {
-                          const taskKey = `${assignee.participant}:${task}`
-                          const status = taskStatus[taskKey] || { isCompleted: false, isLoading: false, error: null }
-
-                          return (
-                            <li key={`task-${taskIndex}`} className="flex items-start">
-                              <button
-                                onClick={() => handleTaskStatusChange(assignee.participant, task, true)}
-                                className="mr-2 mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary transition-colors"
-                                disabled={status.isLoading}
-                              >
-                                {status.isLoading ? (
-                                  <Loader className="h-5 w-5 animate-spin text-primary" />
-                                ) : (
-                                  <Circle className="h-5 w-5" />
-                                )}
-                              </button>
-                              <span className="text-sm text-black">{task}</span>
-                            </li>
-                          )
-                        })}
-
-                      {/* Completed Tasks */}
-                      {assignee.completedTasks &&
-                        Array.isArray(assignee.completedTasks) &&
-                        assignee.completedTasks.map((task, taskIndex) => {
-                          const taskKey = `${assignee.participant}:${task}`
-                          const status = taskStatus[taskKey] || { isCompleted: true, isLoading: false, error: null }
-
-                          return (
-                            <li key={`completed-${taskIndex}`} className="flex items-start">
-                              <button
-                                onClick={() => handleTaskStatusChange(assignee.participant, task, false)}
-                                className="mr-2 mt-0.5 flex-shrink-0 text-primary hover:text-primary/80 transition-colors"
-                                disabled={status.isLoading}
-                              >
-                                {status.isLoading ? (
-                                  <Loader className="h-5 w-5 animate-spin text-primary" />
-                                ) : (
-                                  <CheckCircle className="h-5 w-5" />
-                                )}
-                              </button>
-                              <span className="text-sm line-through text-gray-400">{task}</span>
-                            </li>
-                          )
-                        })}
-                    </ul>
+              <h2 className="text-[16px] font-semibold text-black mb-3">Meeting Recording</h2>
+              <div className="bg-gray-100 rounded-lg overflow-hidden relative">
+                {videoUrl ? (
+                  <video src={videoUrl} className="w-full aspect-video" controls />
+                ) : (
+                  <div className="w-full aspect-video flex items-center justify-center bg-gray-900 text-white">
+                    {isLoadingVideo ? (
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mb-2"></div>
+                        <p className="text-sm">Loading video...</p>
+                      </div>
+                    ) : videoError ? (
+                      <div className="flex flex-col items-center p-4 text-center">
+                        <AlertCircle className="h-10 w-10 text-red-500 mb-2" />
+                        <p className="text-xs text-red-200 mb-2">{videoError}</p>
+                        <button
+                          onClick={handleLoadVideo}
+                          className="px-3 py-1 bg-primary text-white rounded-md text-sm hover:bg-primary/90 transition-colors"
+                        >
+                          Try Again
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={handleLoadVideo} className="flex flex-col items-center">
+                        <div className="h-16 w-16 rounded-full bg-primary/80 flex items-center justify-center mb-2">
+                          <Play className="h-8 w-8 text-white ml-1" />
+                        </div>
+                        <p className="text-sm">Click to load video</p>
+                      </button>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Right Column - 5/12 width with independent scrolling */}
-      <div className="col-span-5 h-full overflow-y-auto custom-scrollbar p-6 pl-3">
-        <div className="space-y-6">
-          {/* Video Player */}
-          <div>
-            <h2 className="text-[16px] font-semibold text-black mb-3">Meeting Recording</h2>
-            <div className="bg-gray-100 rounded-lg overflow-hidden relative">
-              {videoUrl ? (
-                <video src={videoUrl} className="w-full aspect-video" controls />
-              ) : (
-                <div className="w-full aspect-video flex items-center justify-center bg-gray-900 text-white">
-                  {isLoadingVideo ? (
-                    <div className="flex flex-col items-center">
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mb-2"></div>
-                      <p className="text-sm">Loading video...</p>
+            {/* Sales Evaluation - Now with tabs */}
+            {hasSalesEvaluation && editedSalesEvaluation && (
+              <div>
+                <h2 className="text-[16px] font-semibold text-black mb-3">Sales Evaluation</h2>
+
+                {/* Error message */}
+                {evaluationError && (
+                  <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+                    {evaluationError}
+                  </div>
+                )}
+
+                {/* Loading overlay */}
+                {isSavingEvaluation && (
+                  <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+                    <div className="bg-white p-4 rounded-lg shadow-lg flex items-center space-x-3">
+                      <Loader className="h-5 w-5 animate-spin text-primary" />
+                      <span>Saving changes...</span>
                     </div>
-                  ) : videoError ? (
-                    <div className="flex flex-col items-center p-4 text-center">
-                      <AlertCircle className="h-10 w-10 text-red-500 mb-2" />
-                      <p className="text-xs text-red-200 mb-2">{videoError}</p>
-                      <button
-                        onClick={handleLoadVideo}
-                        className="px-3 py-1 bg-primary text-white rounded-md text-sm hover:bg-primary/90 transition-colors"
+                  </div>
+                )}
+
+                {/* Tab Navigation */}
+                <div className="border-b border-gray-200 mb-4 relative">
+                  <div className="flex items-center">
+                    {/* Left scroll button */}
+                    {canScrollLeft && (
+                      <button 
+                        onClick={scrollLeft}
+                        className="absolute left-0 z-10 h-full px-1 flex items-center justify-center bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-500 hover:text-primary"
+                        aria-label="Scroll tabs left"
                       >
-                        Try Again
+                        <ChevronLeft className="h-5 w-5" />
                       </button>
+                    )}
+                    
+                    {/* Tabs container */}
+                    <div 
+                      ref={tabsContainerRef}
+                      className="flex overflow-x-auto scrollbar-hide"
+                      onScroll={handleScroll}
+                      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                    >
+                      {Object.keys(editedSalesEvaluation).map((categoryKey) => (
+                        <button
+                          key={categoryKey}
+                          className={cn(
+                            "px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0",
+                            activeTab === categoryKey
+                              ? "border-primary text-primary"
+                              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",
+                          )}
+                          onClick={() => setActiveTab(categoryKey)}
+                        >
+                          {formatEvaluationKey(categoryKey)}
+                        </button>
+                      ))}
                     </div>
-                  ) : (
-                    <button onClick={handleLoadVideo} className="flex flex-col items-center">
-                      <div className="h-16 w-16 rounded-full bg-primary/80 flex items-center justify-center mb-2">
-                        <Play className="h-8 w-8 text-white ml-1" />
-                      </div>
-                      <p className="text-sm">Click to load video</p>
-                    </button>
+                    
+                    {/* Right scroll button */}
+                    {canScrollRight && (
+                      <button 
+                        onClick={scrollRight}
+                        className="absolute right-0 z-10 h-full px-1 flex items-center justify-center bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-500 hover:text-primary"
+                        aria-label="Scroll tabs right"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tab Content */}
+                <div className="p-1 rounded-lg">
+                  {activeTab && editedSalesEvaluation[activeTab] && (
+                    <div className="space-y-2">
+                      {/* Render subcategories for the active tab */}
+                      {Object.entries(editedSalesEvaluation[activeTab]).map(
+                        ([subcategoryKey, subcategoryValue]: [string, any]) => {
+                          // Skip if not an object
+                          if (!subcategoryValue || typeof subcategoryValue !== "object") {
+                            return null
+                          }
+
+                          return renderSubcategory(activeTab, subcategoryKey, subcategoryValue)
+                        },
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Sales Evaluation - Dynamic rendering based on the data */}
-          {hasSalesEvaluation && editedSalesEvaluation && (
-            <div>
-              <h2 className="text-[16px] font-semibold text-black mb-3">Sales Evaluation</h2>
-
-              {/* Error message */}
-              {evaluationError && (
-                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
-                  {evaluationError}
-                </div>
-              )}
-
-              {/* Loading overlay */}
-              {isSavingEvaluation && (
-                <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-                  <div className="bg-white p-4 rounded-lg shadow-lg flex items-center space-x-3">
-                    <Loader className="h-5 w-5 animate-spin text-primary" />
-                    <span>Saving changes...</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <div className="space-y-2">
-                  {Object.entries(editedSalesEvaluation).map(([key, value]: [string, any]) => {
-                    // Skip if value is not an object with rating property
-                    if (!value || typeof value !== "object" || !("rating" in value)) {
-                      return null
-                    }
-
-                    // Check if we should set this as default open (for overallPerformance)
-                    const isOverallPerformance = key === "overallPerformance"
-                    const isEditing = editingSectionKey === key
-
-                    return (
-                      <CollapsibleSection
-                        key={key}
-                        title={formatEvaluationKey(key)}
-                        defaultOpen={isOverallPerformance}
-                        rating={Math.ceil(value.rating)}
-                        onRatingChange={(newRating) => handleRatingChange(key, newRating)}
-                        isEditing={isEditing}
-                        onEditToggle={() => setEditingSectionKey(key)}
-                        onSave={() => handleSaveEvaluation(key)}
-                        onCancel={() => setEditingSectionKey(null)}
-                      >
-                        {isEditing ? (
-                          <div className="space-y-3">
-                            <div className="text-sm font-medium text-gray-700 mb-1">Feedback:</div>
-                            {value.value &&
-                              Array.isArray(value.value) &&
-                              value.value.map((item: string, index: number) => (
-                                <div key={index} className="flex items-start space-x-2">
-                                  <textarea
-                                    value={item}
-                                    onChange={(e) => handleFeedbackChange(key, index, e.target.value)}
-                                    className="flex-1 p-2 border border-gray-300 rounded text-sm min-h-[60px]"
-                                    placeholder="Enter feedback"
-                                  />
-                                  <button
-                                    onClick={() => handleRemoveFeedback(key, index)}
-                                    className="p-1 text-red-500 hover:text-red-600"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              ))}
-                            <button
-                              onClick={() => handleAddFeedback(key)}
-                              className="text-sm text-primary hover:text-primary/80 flex items-center"
-                            >
-                              <Plus className="h-4 w-4 mr-1" /> Add feedback
-                            </button>
-                          </div>
-                        ) : (
-                          value.value &&
-                          Array.isArray(value.value) &&
-                          value.value.length > 0 && (
-                            <div>
-                              <span className="text-sm font-medium text-gray-700 block mb-1">Feedback:</span>
-                              <ul className="list-disc pl-5 space-y-1">
-                                {value.value.map((item: string, index: number) => (
-                                  <li key={index} className="text-sm text-gray-600">
-                                    {item}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )
-                        )}
-                      </CollapsibleSection>
-                    )
-                  })}
-                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar 
+          display: none;
+        .scrollbar-hide 
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+      `}</style>
+    </>
   )
 }
 
+// Add the default export at the end of the file
 export default SummaryTab

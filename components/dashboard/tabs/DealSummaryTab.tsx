@@ -232,7 +232,7 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
           current.push("")
         } else if (typeof current[0] === "object") {
           // Create a new object with the same structure as the first item
-          const newItem = {}
+          const newItem: Record<string, any> = {}
           Object.keys(current[0]).forEach((key) => {
             newItem[key] = typeof current[0][key] === "object" ? deepClone(current[0][key]) : ""
           })
@@ -538,7 +538,8 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
           <div className="pl-0">{renderEditableString(currentPath, value, isRightSide)}</div>
         </div>
       )
-    } else if (Array.isArray(value)) {
+    } 
+    else if (Array.isArray(value)) {
       // Handle arrays
       if (value.length === 0) return null
 
@@ -631,8 +632,10 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
           </div>
         )
       }
-    } else if (typeof value === "object" && value !== null) {
+    } 
+    else if (typeof value === "object" && value !== null) {
       // Handle objects
+      console.log("keys",key);
       return (
         <div key={key} className="mb-6">
           {!skipHeading && <HeadingTag className={headingClasses}>{formattedKey}</HeadingTag>}
@@ -641,7 +644,7 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
               if (isEmpty(subValue)) return null
 
               const subPath = `${currentPath}.${subKey}`
-
+              console.log("Subkey",subKey);
               // If subValue is a string or a primitive
               if (typeof subValue === "string" || typeof subValue === "number" || typeof subValue === "boolean") {
                 return (
@@ -687,7 +690,9 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
               if (typeof subValue === "object" && subValue !== null) {
                 return (
                   <div key={subKey} className="mb-4">
-                    <div className="text-sm font-semibold text-black mb-2">{formatKeyName(subKey)}</div>
+                      {subKey !== "discoveryGap" && (
+    <div className="text-sm font-semibold text-black mb-2">{formatKeyName(subKey)}</div>
+  )}
                     <div className="pl-0">
                       {Object.entries(subValue).map(([nestedKey, nestedValue]) => (
                         <div key={nestedKey} className="mb-3">
@@ -809,7 +814,7 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
         <div
           className={cn(
             "h-full border-l border-gray-200 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out",
-            isPanelOpen ? "w-[38%] opacity-100" : "w-0 opacity-0",
+            isPanelOpen ? "w-[40%] opacity-100" : "w-0 opacity-0",
           )}
         >
           {/* Right side tabs */}

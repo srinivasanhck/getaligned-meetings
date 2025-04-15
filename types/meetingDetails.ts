@@ -94,6 +94,8 @@ export interface DealSummary {
     understoodClientProblem: boolean
   }
   followUpOwner?: string
+  "left-side"?: Record<string, any>
+  "right-side"?: Record<string, any>
 }
 
 export interface MeetingDetails {
