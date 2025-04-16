@@ -584,7 +584,7 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
           Array.isArray(subcategoryData.value) &&
           subcategoryData.value.length > 0 && (
             <div>
-              <span className="text-sm font-medium text-gray-700 block mb-1">Feedback:</span>
+              {/* <span className="text-sm font-medium text-gray-700 block mb-1">Feedback:</span> */}
               <ul className="list-disc pl-5 space-y-1">
                 {subcategoryData.value.map((item: string, index: number) => (
                   <li key={index} className="text-sm text-gray-600">

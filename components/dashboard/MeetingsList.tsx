@@ -182,24 +182,29 @@ const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
   // Sort dates in descending order (newest first)
   const sortedDates = Object.keys(groupedMeetings).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
 
+    // Check if a meeting is clickable based on its status
+    const isMeetingClickable = (meetingStatus: string) => {
+      return meetingStatus === "SummaryReady" || meetingStatus === "InProgress"
+    }
+
     const handleMeetingClick = (meetingId: string, meetingStatus: string) => {
     if (!hasCalendarAccess) {
       setShowCalendarPopup(true)
       return
     }
 console.log("meetingStatus",meetingStatus);
+
+    // Only proceed if the meeting is clickable
+    if (!isMeetingClickable(meetingStatus)) {
+      return
+    }
+
     if (meetingStatus !== "SummaryReady") {
       let statusMessage = "This meeting summary is not ready yet."
 
       switch (meetingStatus) {
         case "InProgress":
           statusMessage = "This meeting summary is currently being generated."
-          break
-        case "NotStarted":
-          statusMessage = "This meeting summary has not been started yet."
-          break
-        case "BotRestricted":
-          statusMessage = "Bot was not allowed to join the meeting"
           break
         default:
           statusMessage = `Meeting status: ${meetingStatus || "Unknown"}`
@@ -272,6 +277,7 @@ console.log("meetingStatus",meetingStatus);
                 // onClick={() => handleMeetingClick(meeting.id)}
                 onClick={() => handleMeetingClick(meeting.id, meeting.meetingStatus || "")}
                 isActive={meeting.id === selectedMeetingId || meeting.id === reduxSelectedMeetingId}
+                disabled={!isMeetingClickable(meeting.meetingStatus || "")}
               />
             ))}
           </div>

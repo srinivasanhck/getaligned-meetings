@@ -18,9 +18,10 @@ interface MeetingCardProps {
   meeting: Meeting
   onClick?: () => void
   isActive?: boolean
+  disabled?: boolean
 }
 
-const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onClick, isActive = false }) => {
+const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onClick, isActive = false, disabled = false }) => {
   const meetingStatus = meeting.meetingStatus || ""
   const duration = getMeetingDuration(meeting.start.dateTime, meeting.end.dateTime)
 
@@ -85,15 +86,25 @@ const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onClick, isActive = 
 
   const dateLabel = getDateLabel()
 
+  // Handle click with disabled check
+  const handleClick = () => {
+    if (!disabled && onClick) {
+      onClick()
+    }
+  }
+
   return (
     <div
       className={cn(
-        "mb-4 rounded-lg border transition-all cursor-pointer",
+        "mb-4 rounded-lg border transition-all",
         isActive
           ? "border-primary/30 bg-primary/5 shadow-sm"
-          : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-sm",
+          : disabled
+            ? "border-gray-200 bg-gray-50 opacity-70 cursor-not-allowed"
+            : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-sm cursor-pointer",
       )}
-      onClick={onClick}
+      onClick={handleClick}
+      aria-disabled={disabled}
     >
       <div className="p-4">
         <div className="flex items-center">
