@@ -93,6 +93,7 @@ const meetingsSlice = createSlice({
         state.meetings[meetingIndex].meetingBot = hasBotEnabled
       }
     },
+    setSelectedMeetingId: (state, action: PayloadAction<string | null>) => {},
     // Keep any existing reducers
   },
   extraReducers: (builder) => {
@@ -156,4 +157,5 @@ const meetingsSlice = createSlice({
 })
 
 export default meetingsSlice.reducer
-export const { updateMeetingBotStatus } = meetingsSlice.actions
+// export const { updateMeetingBotStatus } = meetingsSlice.actions
+export const { updateMeetingBotStatus, setSelectedMeetingId } = meetingsSlice.actions

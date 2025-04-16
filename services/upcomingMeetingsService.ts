@@ -1,7 +1,6 @@
 import { APIURL } from "@/lib/utils"
 import { getToken } from "@/services/authService"
 import type { MeetingsResponse } from "@/types/meetings"
-import type { Meeting } from "@/types/meetings"
 
 // Helper to format date to the specific format required by the API: YYYY-MM-DDTHH:MM:SS
 const formatDateForAPI = (date: Date): string => {
@@ -101,12 +100,4 @@ export const removeBotFromMeeting = async (meetingId: string) => {
   return apiClient(`${APIURL}/api/v1/meeting-bot/remove-user-bot-job?meetingId=${meetingId}`, {
     method: "POST",
   })
-}
-
-export const fetchMeetingDetails = async (meetingId: string): Promise<Meeting> => {
-  const response = await fetch(`/api/meetings/${meetingId}`)
-  if (!response.ok) {
-    throw new Error("Failed to fetch meeting details")
-  }
-  return response.json()
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useAppSelector } from "@/lib/redux/hooks"
+import { useAppSelector, useAppDispatch } from "@/lib/redux/hooks"
 import { formatDate, formatMeetingDetailsTime, getInitialsFromName, getAttendeeColor, formatDateForMT } from "@/lib/utils/formatters"
 import MeetingDetailsLoading from "./MeetingDetailsLoading"
 import MeetingDetailsError from "./MeetingDetailsError"
@@ -12,6 +12,7 @@ import CalendarAccessPopup from "../auth/CalendarAccessPopup"
 import axios from "axios"
 import { APIURL } from "@/lib/utils"
 import { getToken } from "@/services/authService"
+import { fetchMeetingDetailsThunk } from "@/lib/redux/features/meetingDetailsSlice"
 
 // Import tab components
 import SummaryTab from "./tabs/SummaryTab"
@@ -22,7 +23,12 @@ import { useToast } from "@/components/ui/toast"
 // Tab type
 type TabType = "summary" | "dealSummary" | "email"
 
-const MeetingDetails = () => {
+interface MeetingDetailsProps {
+  meetingId?: string
+}
+
+const MeetingDetails = ({ meetingId }: MeetingDetailsProps = {}) => {
+  const dispatch = useAppDispatch()
   const { details, loading, error, selectedMeetingId } = useAppSelector((state) => state.meetingDetails)
   const { initialLoading: meetingsInitialLoading } = useAppSelector((state) => state.meetings)
   const { hasCalendarAccess } = useAuth()
@@ -30,15 +36,29 @@ const MeetingDetails = () => {
   const [showAttendees, setShowAttendees] = useState(false)
   const [showCalendarPopup, setShowCalendarPopup] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [detailsFetched, setDetailsFetched] = useState(false)
   const attendeesRef = useRef<HTMLDivElement>(null)
-  const toast = useToast()
+  const { showToast } = useToast()
 
-  // Log meeting details to console when they're loaded
+  // Fetch meeting details when meetingId or selectedMeetingId changes
   useEffect(() => {
-    if (details) {
-      console.log("Meeting Details in component:", details)
+    const idToFetch = meetingId || selectedMeetingId
+
+    if (idToFetch && hasCalendarAccess && !detailsFetched) {
+      dispatch(fetchMeetingDetailsThunk(idToFetch))
+      setDetailsFetched(true)
     }
-  }, [details])
+  }, [meetingId, selectedMeetingId, hasCalendarAccess, dispatch, detailsFetched])
+
+  // Reset detailsFetched when meetingId or selectedMeetingId changes
+  useEffect(() => {
+    const idToFetch = meetingId || selectedMeetingId
+
+    // If the ID changes, we need to fetch new details
+    if (idToFetch && details && idToFetch !== details.meeting?.meetingUniqueId) {
+      setDetailsFetched(false)
+    }
+  }, [meetingId, selectedMeetingId, details])
 
   // Close attendees popup when clicking outside
   useEffect(() => {
@@ -57,7 +77,7 @@ const MeetingDetails = () => {
   // Function to save deal summary to backend
   const saveDealSummaryToBackend = async (updatedDealSummary: any) => {
     if (!details || !details.meeting || !details.meeting.meetingUniqueId) {
-      toast.showToast("Meeting ID not found. Cannot save changes.", "error")
+      showToast("Meeting ID not found. Cannot save changes.", "error")
       return
     }
 
@@ -90,10 +110,10 @@ const MeetingDetails = () => {
 
       console.log("API response:", response.data)
 
-      toast.showToast("Deal summary updated successfully", "success")
+      showToast("Deal summary updated successfully", "success")
     } catch (error) {
       console.error("Error saving deal summary:", error)
-      toast.showToast("Failed to save deal summary. Please try again.", "error")
+      showToast("Failed to save deal summary. Please try again.", "error")
     } finally {
       setIsSaving(false)
     }
@@ -122,12 +142,12 @@ const MeetingDetails = () => {
   }
 
   // Show loading state if meetings are still initially loading or if meeting details are loading
-  if (meetingsInitialLoading || loading) {
+  if ((meetingsInitialLoading && !details) || loading) {
     return <MeetingDetailsLoading />
   }
 
   if (error) {
-    return <MeetingDetailsError error={error} meetingId={selectedMeetingId} />
+    return <MeetingDetailsError error={error} meetingId={meetingId || selectedMeetingId} />
   }
 
   if (!details) {

@@ -26,7 +26,8 @@ const Sidebar = () => {
 
   // Update active item based on pathname
   useEffect(() => {
-    if (pathname === "/" || pathname.includes("/dashboard")) {
+    // if (pathname === "/" || pathname.includes("/dashboard")) {
+      if (pathname === "/" || pathname.includes("/dashboard") || pathname.includes("/meeting/")) {
       setActiveItem("home")
     } else if (pathname.includes("/upcoming")) {
       setActiveItem("calendar")

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks"
 import {
   fetchMeetingsThunk,
@@ -8,7 +9,7 @@ import {
   getInitialDateRange,
   getDateRange,
 } from "@/lib/redux/features/meetingsSlice"
-import { fetchMeetingDetailsThunk, setSelectedMeetingId } from "@/lib/redux/features/meetingDetailsSlice"
+import { setSelectedMeetingId } from "@/lib/redux/features/meetingDetailsSlice"
 import { groupMeetingsByDate, formatDateHeader } from "@/lib/utils/formatters"
 import MeetingCard from "./MeetingCard"
 import { CalendarIcon, Loader, ChevronDown, X, AlertCircle } from "lucide-react"
@@ -23,11 +24,17 @@ import { useToast } from "@/components/ui/toast"
 // Filter options
 type FilterOption = "All" | "Calendar"
 
+interface MeetingsListProps {
+  selectedMeetingId?: string
+}
+
 // Update the MeetingsList component to handle meeting selection
-const MeetingsList = () => {
+const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
+  const router = useRouter()
+  const pathname = usePathname()
   const dispatch = useAppDispatch()
   const { meetings, loading, loadingMore, error, oldestDate, hasMore } = useAppSelector((state) => state.meetings)
-  const { selectedMeetingId } = useAppSelector((state) => state.meetingDetails)
+  const { selectedMeetingId: reduxSelectedMeetingId } = useAppSelector((state) => state.meetingDetails)
   const { hasCalendarAccess, authError } = useAuth()
   const [filter, setFilter] = useState<FilterOption>("All")
   const [isFilterOpen, setIsFilterOpen] = useState(false)
@@ -38,11 +45,12 @@ const MeetingsList = () => {
   const [isCustomDateRange, setIsCustomDateRange] = useState(false)
   const [showCalendarPopup, setShowCalendarPopup] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
+  const [initialFetchDone, setInitialFetchDone] = useState(false)
+    const { showToast } = useToast()
 
   // Reference to the container for scroll detection
   const containerRef = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
-  const { showToast } = useToast()
 
   // Show auth error if present
   useEffect(() => {
@@ -56,34 +64,24 @@ const MeetingsList = () => {
     }
   }, [authError])
 
-  // Initial fetch - only if calendar access is granted
+  // Initial fetch - only if calendar access is granted and we haven't fetched yet
   useEffect(() => {
-    if (hasCalendarAccess && !isCustomDateRange) {
+    if (hasCalendarAccess && !isCustomDateRange && !initialFetchDone && meetings.length === 0) {
       const initialDateRange = getInitialDateRange()
       dispatch(fetchMeetingsThunk(initialDateRange))
+      setInitialFetchDone(true)
     } else if (!hasCalendarAccess) {
       // Show the calendar access popup if no access
       setShowCalendarPopup(true)
     }
-  }, [dispatch, isCustomDateRange, hasCalendarAccess])
+  }, [dispatch, isCustomDateRange, hasCalendarAccess, initialFetchDone, meetings.length])
 
-  // Find and select the latest meeting with "SummaryReady" status after meetings are loaded
+  // Update Redux state when URL meeting ID changes
   useEffect(() => {
-    if (!loading && meetings.length > 0 && !selectedMeetingId) {
-      // Sort meetings by date (newest first)
-      const sortedMeetings = [...meetings].sort(
-        (a, b) => new Date(b.start.dateTime).getTime() - new Date(a.start.dateTime).getTime(),
-      )
-
-      // Find the first meeting with "SummaryReady" status
-      const readyMeeting = sortedMeetings.find((meeting) => meeting.meetingStatus === "SummaryReady")
-
-      if (readyMeeting) {
-        // handleMeetingClick(readyMeeting.id)
-        handleMeetingClick(readyMeeting.id, readyMeeting?.meetingStatus || "")
-      }
+    if (selectedMeetingId && selectedMeetingId !== reduxSelectedMeetingId) {
+      dispatch(setSelectedMeetingId(selectedMeetingId))
     }
-  }, [loading, meetings, selectedMeetingId, dispatch])
+  }, [selectedMeetingId, reduxSelectedMeetingId, dispatch])
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -145,23 +143,14 @@ const MeetingsList = () => {
       setShowCalendarPopup(true)
       return
     }
-    console.log("initial", "startDate", startDate, "End", endDate)
     setDateRange({ startDate, endDate })
     setIsCustomDateRange(true)
     setIsFilterOpen(false)
 
-    const formatLocalDate = (date: Date, endOfDay = false) => {
-      const year = date.getFullYear()
-      const month = String(date.getMonth() + 1).padStart(2, "0")
-      const day = String(date.getDate()).padStart(2, "0")
-      const time = endOfDay ? "23:59:59" : "00:00:00"
-      return `${year}-${month}-${day}T${time}`
-    }
-
     // Format dates for API
-    const formattedStartDate = formatLocalDate(startDate) // "2025-04-02T00:00:00"
-const formattedEndDate = formatLocalDate(endDate, true) // "2025-04-04T23:59:59"
-    console.log("formatted at meetingList", "start date", formattedStartDate, "end date", formattedEndDate)
+    const formattedStartDate = startDate.toISOString()
+    const formattedEndDate = endDate.toISOString()
+
     // Fetch meetings for the selected date range
     dispatch(
       fetchMeetingsThunk({
@@ -193,13 +182,7 @@ const formattedEndDate = formatLocalDate(endDate, true) // "2025-04-04T23:59:59"
   // Sort dates in descending order (newest first)
   const sortedDates = Object.keys(groupedMeetings).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
 
-  // const handleMeetingClick = (meetingId: string) => {
-  //   if (!hasCalendarAccess) {
-  //     setShowCalendarPopup(true)
-  //     return
-  //   }
-
-  const handleMeetingClick = (meetingId: string, meetingStatus: string) => {
+    const handleMeetingClick = (meetingId: string, meetingStatus: string) => {
     if (!hasCalendarAccess) {
       setShowCalendarPopup(true)
       return
@@ -229,8 +212,10 @@ console.log("meetingStatus",meetingStatus);
     // Set the selected meeting ID in Redux
     dispatch(setSelectedMeetingId(meetingId))
 
-    // Fetch the meeting details
-    dispatch(fetchMeetingDetailsThunk(meetingId))
+        // Then update URL without full page reload
+        if (!pathname.includes(`/meeting/${meetingId}`)) {
+          window.history.pushState({}, "", `/meeting/${meetingId}`)
+        }
   }
 
   // Format date for display
@@ -260,7 +245,7 @@ console.log("meetingStatus",meetingStatus);
       )
     }
 
-    if (loading) {
+    if (loading && meetings.length === 0) {
       return <MeetingsListSkeleton />
     }
 
@@ -276,7 +261,7 @@ console.log("meetingStatus",meetingStatus);
       <>
         {sortedDates.map((date) => (
           <div key={date} className="mb-6">
-            <h3 className="mb-3 text-sm font-semibold text-gray-500 capitalize tracking-wider">
+            <h3 className="mb-3 text-sm font-semibold text-gray-500 uppercase tracking-wider">
               {formatDateHeader(date)}
             </h3>
 
@@ -284,8 +269,9 @@ console.log("meetingStatus",meetingStatus);
               <MeetingCard
                 key={meeting.id}
                 meeting={meeting}
+                // onClick={() => handleMeetingClick(meeting.id)}
                 onClick={() => handleMeetingClick(meeting.id, meeting.meetingStatus || "")}
-                isActive={meeting.id === selectedMeetingId}
+                isActive={meeting.id === selectedMeetingId || meeting.id === reduxSelectedMeetingId}
               />
             ))}
           </div>
