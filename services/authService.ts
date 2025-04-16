@@ -25,6 +25,13 @@ export const getCookieOptions = () => ({
   sameSite: "lax" as const,
 })
 
+export const getCookieOptionsForRemoval = () => ({
+  path: "/",
+  domain: process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost",
+  secure: process.env.NEXT_PUBLIC_NODE_ENV === "production" ? true : false,
+})
+
+
 console.log("NEXT_PUBLIC_COOKIE_DOMAIN s",process.env.NEXT_PUBLIC_COOKIE_DOMAIN);
 console.log("NEXT_PUBLIC_NODE_ENV s",process.env.NEXT_PUBLIC_NODE_ENV);
 console.log("process.env.NEXT_PUBLIC_isLocalhost s", process.env.NEXT_PUBLIC_isLocalhost);
@@ -289,9 +296,9 @@ export function getUserEmail(): string | undefined {
  */
 export function logout(): void {
   try {
-    const cookieOptions = { path: "/" }
+    const cookieOptions = getCookieOptionsForRemoval()
     console.log("Removing cookies with options:", cookieOptions)
-
+console.log("cookie options",cookieOptions)
     Cookies.remove(TOKEN_COOKIE, cookieOptions)
     Cookies.remove(EMAIL_COOKIE, cookieOptions)
     Cookies.remove(HAS_CALENDAR_ACCESS, cookieOptions)
