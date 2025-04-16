@@ -78,7 +78,7 @@ export async function fetchEmailTemplate(meetingId: string): Promise<EmailTempla
     const data: ApiEmailResponse = await response.json()
 
     // Check if we have a scope error
-    const hasGmailScope = data.scope !== false
+    const hasGmailScope = data.scope !== "false"
 
     // Parse recipients from comma-separated string to array
     // Note: We'll still parse this, but we'll use meeting attendees in the EmailTab component

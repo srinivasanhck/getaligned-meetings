@@ -16,21 +16,22 @@ export default function AuthLoadingScreen({ children }: { children: React.ReactN
   const isPublicRoute = pathname === "/login" || pathname === "/auth/callback"
 
   useEffect(() => {
-    // If we're on the login page and already logged in, redirect to home
-    if (!loading && isLoggedIn && pathname === "/login") {
-      router.replace("/")
-      return
-    }
-
-    // Only render content when:
-    // 1. Authentication check is complete (loading is false), AND
-    // 2. Either the user is logged in OR we're on a public route
-    if (!loading && (isLoggedIn || isPublicRoute)) {
-      setShouldRender(true)
-    } else if (!loading && !isLoggedIn && !isPublicRoute) {
-      // If auth check is complete, user is not logged in, and route is protected,
-      // redirect to login without rendering the protected content
-      router.replace("/login")
+    // Only make decisions when loading is complete
+    if (!loading) {
+      if (isLoggedIn) {
+        // If logged in and on login page, redirect to home
+        if (pathname === "/login") {
+          router.replace("/")
+        } else {
+          setShouldRender(true)
+        }
+      } else if (!isPublicRoute) {
+        // If not logged in and not on public route, redirect to login
+        router.replace("/login")
+      } else {
+        // If on public route and not logged in, show content
+        setShouldRender(true)
+      }
     }
   }, [loading, isLoggedIn, isPublicRoute, pathname, router])
 
