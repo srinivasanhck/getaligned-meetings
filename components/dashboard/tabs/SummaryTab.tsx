@@ -3,7 +3,19 @@
 import type React from "react"
 
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react"
-import {CheckCircle, Circle, Play, AlertCircle,  Loader,  ChevronDown,  ChevronRight, Edit, Save, X, Plus, ChevronLeft,
+import {
+  CheckCircle,
+  Circle,
+  Play,
+  AlertCircle,
+  Loader,
+  ChevronDown,
+  ChevronRight,
+  Edit,
+  Save,
+  X,
+  Plus,
+  ChevronLeft,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchMeetingVideo } from "@/services/videoService"
@@ -12,6 +24,7 @@ import { useToast } from "@/components/ui/toast"
 import { APIURL } from "@/lib/utils"
 import { getToken } from "@/services/authService"
 import axios from "axios"
+import AskMeAnything from "../AskMeAnything"
 
 // Task management interfaces
 interface TaskStatus {
@@ -615,11 +628,11 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
     const resizeObserver = new ResizeObserver(() => {
       checkScrollability()
     })
-    
+
     if (tabsContainerRef.current) {
       resizeObserver.observe(tabsContainerRef.current)
     }
-    
+
     return () => {
       if (tabsContainerRef.current) {
         resizeObserver.unobserve(tabsContainerRef.current)
@@ -630,14 +643,14 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
   // Add these scroll handler functions
   const scrollLeft = () => {
     if (tabsContainerRef.current) {
-      tabsContainerRef.current.scrollBy({ left: -200, behavior: 'smooth' })
+      tabsContainerRef.current.scrollBy({ left: -200, behavior: "smooth" })
       setTimeout(checkScrollability, 300)
     }
   }
 
   const scrollRight = () => {
     if (tabsContainerRef.current) {
-      tabsContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' })
+      tabsContainerRef.current.scrollBy({ left: 200, behavior: "smooth" })
       setTimeout(checkScrollability, 300)
     }
   }
@@ -649,9 +662,9 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
 
   return (
     <>
-      <div className="h-full grid grid-cols-12 gap-6">
-        {/* Left Column - 7/12 width with independent scrolling */}
-        <div className="col-span-7 h-full overflow-y-auto custom-scrollbar p-6 pr-3">
+      <div className="h-full flex justify-between">
+        {/* Left Column - 60% width with independent scrolling */}
+        <div className="w-[60%] h-full overflow-y-auto custom-scrollbar p-6 pr-3">
           <div className="space-y-6">
             {/* Keywords */}
             {keywords && Array.isArray(keywords) && keywords.length > 0 && (
@@ -753,46 +766,46 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
           </div>
         </div>
 
-        {/* Right Column - 5/12 width with independent scrolling */}
-        <div className="col-span-5 h-full overflow-y-auto custom-scrollbar p-[4px] pl-3">
-          <div className="space-y-6">
-            {/* Video Player */}
-            <div>
-              <h2 className="text-[16px] font-semibold text-black mb-3">Meeting Recording</h2>
-              <div className="bg-gray-100 rounded-lg overflow-hidden relative">
-                {videoUrl ? (
-                  <video src={videoUrl} className="w-full aspect-video" controls />
-                ) : (
-                  <div className="w-full aspect-video flex items-center justify-center bg-gray-900 text-white">
-                    {isLoadingVideo ? (
-                      <div className="flex flex-col items-center">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mb-2"></div>
-                        <p className="text-sm">Loading video...</p>
-                      </div>
-                    ) : videoError ? (
-                      <div className="flex flex-col items-center p-4 text-center">
-                        <AlertCircle className="h-10 w-10 text-red-500 mb-2" />
-                        <p className="text-xs text-red-200 mb-2">{videoError}</p>
-                        <button
-                          onClick={handleLoadVideo}
-                          className="px-3 py-1 bg-primary text-white rounded-md text-sm hover:bg-primary/90 transition-colors"
-                        >
-                          Try Again
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={handleLoadVideo} className="flex flex-col items-center">
-                        <div className="h-16 w-16 rounded-full bg-primary/80 flex items-center justify-center mb-2">
-                          <Play className="h-8 w-8 text-white ml-1" />
-                        </div>
-                        <p className="text-sm">Click to load video</p>
+        {/* Right Column - 39% width with independent scrolling */}
+        <div className="w-[39%] h-full flex flex-col overflow-hidden">
+          {/* Fixed Video Player Section */}
+          <div className="flex-shrink-0 p-[4px] pb-2">
+            <div className="bg-gray-100 rounded-lg overflow-hidden relative">
+              {videoUrl ? (
+                <video src={videoUrl} className="w-full aspect-video" controls />
+              ) : (
+                <div className="w-full aspect-video flex items-center justify-center bg-gray-900 text-white">
+                  {isLoadingVideo ? (
+                    <div className="flex flex-col items-center">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mb-2"></div>
+                      <p className="text-sm">Loading video...</p>
+                    </div>
+                  ) : videoError ? (
+                    <div className="flex flex-col items-center p-4 text-center">
+                      <AlertCircle className="h-10 w-10 text-red-500 mb-2" />
+                      <p className="text-xs text-red-200 mb-2">{videoError}</p>
+                      <button
+                        onClick={handleLoadVideo}
+                        className="px-3 py-1 bg-primary text-white rounded-md text-sm hover:bg-primary/90 transition-colors"
+                      >
+                        Try Again
                       </button>
-                    )}
-                  </div>
-                )}
-              </div>
+                    </div>
+                  ) : (
+                    <button onClick={handleLoadVideo} className="flex flex-col items-center">
+                      <div className="h-16 w-16 rounded-full bg-primary/80 flex items-center justify-center mb-2">
+                        <Play className="h-8 w-8 text-white ml-1" />
+                      </div>
+                      <p className="text-sm">Click to load video</p>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
+          </div>
 
+          {/* Scrollable Sales Evaluation Section */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-[4px] pt-0">
             {/* Sales Evaluation - Now with tabs */}
             {hasSalesEvaluation && editedSalesEvaluation && (
               <div>
@@ -820,7 +833,7 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
                   <div className="flex items-center">
                     {/* Left scroll button */}
                     {canScrollLeft && (
-                      <button 
+                      <button
                         onClick={scrollLeft}
                         className="absolute left-0 z-10 h-full px-1 flex items-center justify-center bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-500 hover:text-primary"
                         aria-label="Scroll tabs left"
@@ -828,13 +841,13 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
                         <ChevronLeft className="h-5 w-5" />
                       </button>
                     )}
-                    
+
                     {/* Tabs container */}
-                    <div 
+                    <div
                       ref={tabsContainerRef}
                       className="flex overflow-x-auto scrollbar-hide"
                       onScroll={handleScroll}
-                      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                      style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                     >
                       {Object.keys(editedSalesEvaluation).map((categoryKey) => (
                         <button
@@ -851,10 +864,10 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
                         </button>
                       ))}
                     </div>
-                    
+
                     {/* Right scroll button */}
                     {canScrollRight && (
-                      <button 
+                      <button
                         onClick={scrollRight}
                         className="absolute right-0 z-10 h-full px-1 flex items-center justify-center bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-500 hover:text-primary"
                         aria-label="Scroll tabs right"
@@ -887,6 +900,11 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
             )}
           </div>
         </div>
+
+        <AskMeAnything
+          meetingTitle={details.meeting?.meetingTitle || "this meeting"}
+          meetingId={details.meeting?.meetingUniqueId}
+        />
       </div>
       <style jsx global>{`
         .scrollbar-hide::-webkit-scrollbar 

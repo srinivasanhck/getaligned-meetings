@@ -59,7 +59,7 @@ const Sidebar = () => {
             >
               <Home size={20} />
             </Link>
-            <div className="absolute left-full ml-2 hidden rounded bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
+            <div className="absolute left-full ml-2 hidden rounded bg-gray-800 px-2 py-1 text-xs text-white group-hover:block z-[99]">
               Homepage
             </div>
           </div>
@@ -78,7 +78,7 @@ const Sidebar = () => {
             >
               <Calendar size={20} />
             </Link>
-            <div className="absolute left-full ml-2 hidden rounded bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
+            <div className="absolute left-full ml-2 hidden rounded z-[99] bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
               Upcoming Meetings
             </div>
           </div>

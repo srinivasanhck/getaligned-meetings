@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useAppSelector, useAppDispatch } from "@/lib/redux/hooks"
-import { formatDate, formatMeetingDetailsTime, getInitialsFromName, getAttendeeColor, formatDateForMT } from "@/lib/utils/formatters"
+import {
+  formatMeetingDetailsTime,
+  getInitialsFromName,
+  getAttendeeColor,
+  formatDateForMT,
+} from "@/lib/utils/formatters"
 import MeetingDetailsLoading from "./MeetingDetailsLoading"
 import MeetingDetailsError from "./MeetingDetailsError"
 import { Clock, Calendar, Users, CalendarIcon } from "lucide-react"
@@ -179,9 +184,10 @@ const MeetingDetails = ({ meetingId }: MeetingDetailsProps = {}) => {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Fixed Header */}
-      <div className="border-b border-gray-200 bg-white p-4 sticky top-0 z-10">
+      {/* <div className="flex items-center mt-2 py-2 border-b border-gray-200 bg-white sticky top-0 z-10 p-4"> */}
+      <div className="flex items-center mt-2 py-2 bg-white sticky top-0 z-10 p-4">
         <h1 className="text-base font-bold text-gray-900">{meeting?.meetingTitle || "Untitled Meeting"}</h1>
-        <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-500">
+        <div className="ml-4 flex flex-wrap gap-3 text-sm text-gray-500">
           <div className="flex items-center">
             <Calendar className="mr-1.5 h-4 w-4 text-gray-400" />
             <span>
@@ -230,7 +236,7 @@ const MeetingDetails = ({ meetingId }: MeetingDetailsProps = {}) => {
         <div className="flex">
           <button
             className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+              "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
               activeTab === "summary"
                 ? "border-primary text-primary"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",

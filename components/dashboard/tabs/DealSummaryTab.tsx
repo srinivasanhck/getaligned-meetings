@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import { ChevronLeft, ChevronRight, Edit, Save, X, Plus, Trash2, Download } from "lucide-react"
+import { Edit, Save, X, Plus, Trash2, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { MeetingDetails } from "@/types/meetingDetails"
 import html2canvas from "html2canvas"
@@ -71,7 +71,6 @@ const parsePath = (path: string, obj: any): any => {
 
 // Inside the DealSummaryTab component, add a new state for the active right-side tab
 const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
-  const [isPanelOpen, setIsPanelOpen] = useState(false)
   const { dealSummary } = details
 
   // State for edited data
@@ -110,11 +109,6 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
   }, [dealSummary])
 
   // Keep all the existing functions (togglePanel, toggleEditMode, updateValue, etc.)
-
-  // Toggle panel
-  const togglePanel = () => {
-    setIsPanelOpen(!isPanelOpen)
-  }
 
   // Toggle edit mode for a field
   const toggleEditMode = (path: string) => {
@@ -538,8 +532,7 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
           <div className="pl-0">{renderEditableString(currentPath, value, isRightSide)}</div>
         </div>
       )
-    } 
-    else if (Array.isArray(value)) {
+    } else if (Array.isArray(value)) {
       // Handle arrays
       if (value.length === 0) return null
 
@@ -632,10 +625,9 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
           </div>
         )
       }
-    } 
-    else if (typeof value === "object" && value !== null) {
+    } else if (typeof value === "object" && value !== null) {
       // Handle objects
-      console.log("keys",key);
+      console.log("keys", key)
       return (
         <div key={key} className="mb-6">
           {!skipHeading && <HeadingTag className={headingClasses}>{formattedKey}</HeadingTag>}
@@ -644,7 +636,7 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
               if (isEmpty(subValue)) return null
 
               const subPath = `${currentPath}.${subKey}`
-              console.log("Subkey",subKey);
+              // console.log("Subkey",subKey);
               // If subValue is a string or a primitive
               if (typeof subValue === "string" || typeof subValue === "number" || typeof subValue === "boolean") {
                 return (
@@ -690,9 +682,9 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
               if (typeof subValue === "object" && subValue !== null) {
                 return (
                   <div key={subKey} className="mb-4">
-                      {subKey !== "discoveryGap" && (
-    <div className="text-sm font-semibold text-black mb-2">{formatKeyName(subKey)}</div>
-  )}
+                    {subKey !== "discoveryGap" && (
+                      <div className="text-sm font-semibold text-black mb-2">{formatKeyName(subKey)}</div>
+                    )}
                     <div className="pl-0">
                       {Object.entries(subValue).map(([nestedKey, nestedValue]) => (
                         <div key={nestedKey} className="mb-3">
@@ -758,31 +750,25 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
       )}
 
       {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Main content - left side */}
-        <div
-          className={cn(
-            "h-full overflow-y-auto custom-scrollbar p-6 transition-all duration-300 ease-in-out",
-            isPanelOpen ? "w-[58%]" : "w-full",
+      <div className="flex-1 flex justify-between overflow-hidden">
+        {/* Left side - 60% width with independent scrolling */}
+        <div className="w-[60%] h-full overflow-y-auto custom-scrollbar p-6 pr-3 relative">
+          {leftSideData && typeof leftSideData === "object" && Object.keys(leftSideData).length > 0 && (
+           <div className="absolute top-6 right-6 z-10 group">
+           <button
+             onClick={handleDownloadPDF}
+             className="flex items-center justify-center p-2 bg-[#8034CB] text-white rounded-md hover:bg-[#6a2ba9] transition-colors shadow-sm"
+             aria-label="Download PDF"
+           >
+             <Download className="h-4 w-4" />
+           </button>
+           
+           <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+             Download PDF
+           </div>
+         </div>
+         
           )}
-        >
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-[14px]  text-gray-500">Deal Summary</h2>
-            {leftSideData && typeof leftSideData === "object" && Object.keys(leftSideData).length > 0 && (
-              <div className="relative group">
-                <button
-                  onClick={handleDownloadPDF}
-                  className="flex items-center justify-center p-2 bg-[#8034CB] text-white rounded-md hover:bg-[#6a2ba9] transition-colors"
-                  aria-label="Download PDF"
-                >
-                  <Download className="h-4 w-4" />
-                </button>
-                <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                  Download PDF
-                </div>
-              </div>
-            )}
-          </div>
           <div className="space-y-6" ref={leftPanelRef}>
             {leftSideData && typeof leftSideData === "object" ? (
               Object.entries(leftSideData).map(([key, value]) => renderValue(key, value))
@@ -794,32 +780,11 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
           </div>
         </div>
 
-        {/* Right panel toggle button */}
-        <button
-          onClick={togglePanel}
-          className={cn(
-            "absolute right-0 top-1/2 transform -translate-y-1/2 bg-gray-100 hover:bg-gray-200 p-2 rounded-l-md shadow-md z-10 transition-all duration-300",
-            isPanelOpen ? "translate-x-0" : "translate-x-0",
-          )}
-          aria-label={isPanelOpen ? "Close right panel" : "Open right panel"}
-        >
-          {isPanelOpen ? (
-            <ChevronRight className="h-5 w-5 text-gray-600" />
-          ) : (
-            <ChevronLeft className="h-5 w-5 text-gray-600" />
-          )}
-        </button>
-
-        {/* Right panel */}
-        <div
-          className={cn(
-            "h-full border-l border-gray-200 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out",
-            isPanelOpen ? "w-[40%] opacity-100" : "w-0 opacity-0",
-          )}
-        >
+        {/* Right side - 39% width with independent scrolling */}
+        <div className="w-[39%] h-full border-l border-gray-200 overflow-y-auto custom-scrollbar pt-0 pr-3 pb-6 pl-3">
           {/* Right side tabs */}
-          {isPanelOpen && rightSideTabs.length > 0 && (
-            <div className="border-b border-gray-200 bg-white sticky top-0 z-10">
+          {rightSideTabs.length > 0 && (
+            <div className="border-b border-gray-200 bg-white sticky top-0 z-10 mb-4">
               <div className="flex overflow-x-auto">
                 {rightSideTabs.map((tabKey) => (
                   <button
@@ -840,7 +805,7 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
           )}
 
           {/* Right side content */}
-          <div className="p-6">
+          <div>
             {rightSideData && typeof rightSideData === "object" ? (
               activeRightTab && rightSideData[activeRightTab] ? (
                 // Only render the content for the active tab, and skip the heading
