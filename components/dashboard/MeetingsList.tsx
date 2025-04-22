@@ -320,7 +320,7 @@ console.log("meetingStatus",meetingStatus);
 
       <div
         ref={containerRef}
-        className="h-screen w-80 overflow-y-auto border-r border-gray-200 bg-white custom-scrollbar"
+        className="h-screen w-72 overflow-y-auto border-r border-gray-200 bg-white custom-scrollbar"
       >
         <div className="sticky top-0 z-10 bg-white p-4 border-b border-gray-100 shadow-sm">
           <div className="flex items-center justify-between">

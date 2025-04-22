@@ -664,7 +664,7 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
     <>
       <div className="h-full flex justify-between">
         {/* Left Column - 60% width with independent scrolling */}
-        <div className="w-[60%] h-full overflow-y-auto custom-scrollbar p-6 pr-3">
+        <div className="w-[68%] h-full overflow-y-auto scrollbar-none p-6 pr-3">
           <div className="space-y-6">
             {/* Keywords */}
             {keywords && Array.isArray(keywords) && keywords.length > 0 && (
@@ -766,138 +766,147 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
           </div>
         </div>
 
-        {/* Right Column - 39% width with independent scrolling */}
-        <div className="w-[39%] h-full flex flex-col overflow-hidden">
-          {/* Fixed Video Player Section */}
-          <div className="flex-shrink-0 p-[4px] pb-2">
-            <div className="bg-gray-100 rounded-lg overflow-hidden relative">
-              {videoUrl ? (
-                <video src={videoUrl} className="w-full aspect-video" controls />
-              ) : (
-                <div className="w-full aspect-video flex items-center justify-center bg-gray-900 text-white">
-                  {isLoadingVideo ? (
-                    <div className="flex flex-col items-center">
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mb-2"></div>
-                      <p className="text-sm">Loading video...</p>
-                    </div>
-                  ) : videoError ? (
-                    <div className="flex flex-col items-center p-4 text-center">
-                      <AlertCircle className="h-10 w-10 text-red-500 mb-2" />
-                      <p className="text-xs text-red-200 mb-2">{videoError}</p>
-                      <button
-                        onClick={handleLoadVideo}
-                        className="px-3 py-1 bg-primary text-white rounded-md text-sm hover:bg-primary/90 transition-colors"
-                      >
-                        Try Again
-                      </button>
-                    </div>
-                  ) : (
-                    <button onClick={handleLoadVideo} className="flex flex-col items-center">
-                      <div className="h-16 w-16 rounded-full bg-primary/80 flex items-center justify-center mb-2">
-                        <Play className="h-8 w-8 text-white ml-1" />
+        {/* Right Column - 25% width with independent scrolling */}
+        <div className="w-[32%] h-full overflow-hidden pr-2 pt-4 pl-2 mr-2 flex items-start">
+          {/* Card container for the entire right side */}
+          <div
+            className="h-[100%] w-[98%] flex flex-col rounded-xl shadow-xl border border-gray-200 overflow-hidden bg-white relative z-20 transform translate-x-2"
+            style={{
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            {/* Fixed Video Player Section */}
+            <div className="flex-shrink-0 p-[18px]">
+              <div className="bg-[#121a2e] rounded-lg overflow-hidden relative">
+                {videoUrl ? (
+                  <video src={videoUrl} className="w-full aspect-video" controls />
+                ) : (
+                  <div className="w-full aspect-video flex items-center justify-center text-white">
+                    {isLoadingVideo ? (
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mb-2"></div>
+                        <p className="text-sm">Loading video...</p>
                       </div>
-                      <p className="text-sm">Click to load video</p>
-                    </button>
+                    ) : videoError ? (
+                      <div className="flex flex-col items-center p-4 text-center">
+                        <AlertCircle className="h-10 w-10 text-red-500 mb-2" />
+                        <p className="text-xs text-red-200 mb-2">{videoError}</p>
+                        <button
+                          onClick={handleLoadVideo}
+                          className="px-3 py-1 bg-primary text-white rounded-md text-sm hover:bg-primary/90 transition-colors"
+                        >
+                          Try Again
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={handleLoadVideo} className="flex flex-col items-center">
+                        <div className="h-12 w-12 rounded-full bg-[#8034CB] flex items-center justify-center mb-2">
+                          <Play className="h-8 w-8 text-white ml-1" />
+                        </div>
+                        <p className="text-sm">Click to load video</p>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Scrollable Sales Evaluation Section */}
+            <div className="flex-1 overflow-y-auto scrollbar-none bg-white p-2">
+              {/* Sales Evaluation - Now with tabs */}
+              {hasSalesEvaluation && editedSalesEvaluation && (
+                <div>
+                  <h2 className="text-[16px] font-semibold text-black mb-3 pl-[8px]">Sales Evaluation</h2>
+
+                  {/* Error message */}
+                  {evaluationError && (
+                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+                      {evaluationError}
+                    </div>
                   )}
+
+                  {/* Loading overlay */}
+                  {isSavingEvaluation && (
+                    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+                      <div className="bg-white p-4 rounded-lg shadow-lg flex items-center space-x-3">
+                        <Loader className="h-5 w-5 animate-spin text-primary" />
+                        <span>Saving changes...</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab Navigation */}
+                  <div className="border-b border-gray-200 mb-4 relative">
+                    <div className="flex items-center">
+                      {/* Left scroll button */}
+                      {canScrollLeft && (
+                        <button
+                          onClick={scrollLeft}
+                          className="absolute left-0 z-10 h-full px-1 flex items-center justify-center bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-500 hover:text-primary"
+                          aria-label="Scroll tabs left"
+                        >
+                          <ChevronLeft className="h-5 w-5" />
+                        </button>
+                      )}
+
+                      {/* Tabs container */}
+                      <div
+                        ref={tabsContainerRef}
+                        className="flex overflow-x-auto scrollbar-hide"
+                        onScroll={handleScroll}
+                        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                      >
+                        {Object.keys(editedSalesEvaluation).map((categoryKey) => (
+                          <button
+                            key={categoryKey}
+                            className={cn(
+                              "px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0",
+                              activeTab === categoryKey
+                                ? "border-primary text-primary"
+                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",
+                            )}
+                            onClick={() => setActiveTab(categoryKey)}
+                          >
+                            {formatEvaluationKey(categoryKey)}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Right scroll button */}
+                      {canScrollRight && (
+                        <button
+                          onClick={scrollRight}
+                          className="absolute right-0 z-10 h-full px-1 flex items-center justify-center bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-500 hover:text-primary"
+                          aria-label="Scroll tabs right"
+                        >
+                          <ChevronRight className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="rounded-lg">
+                    {activeTab && editedSalesEvaluation[activeTab] && (
+                      <div className="space-y-2">
+                        {/* Render subcategories for the active tab */}
+                        {Object.entries(editedSalesEvaluation[activeTab]).map(
+                          ([subcategoryKey, subcategoryValue]: [string, any]) => {
+                            // Skip if not an object
+                            if (!subcategoryValue || typeof subcategoryValue !== "object") {
+                              return null
+                            }
+
+                            return renderSubcategory(activeTab, subcategoryKey, subcategoryValue)
+                          },
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Scrollable Sales Evaluation Section */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-[4px] pt-0">
-            {/* Sales Evaluation - Now with tabs */}
-            {hasSalesEvaluation && editedSalesEvaluation && (
-              <div>
-                <h2 className="text-[16px] font-semibold text-black mb-3">Sales Evaluation</h2>
-
-                {/* Error message */}
-                {evaluationError && (
-                  <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
-                    {evaluationError}
-                  </div>
-                )}
-
-                {/* Loading overlay */}
-                {isSavingEvaluation && (
-                  <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-                    <div className="bg-white p-4 rounded-lg shadow-lg flex items-center space-x-3">
-                      <Loader className="h-5 w-5 animate-spin text-primary" />
-                      <span>Saving changes...</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tab Navigation */}
-                <div className="border-b border-gray-200 mb-4 relative">
-                  <div className="flex items-center">
-                    {/* Left scroll button */}
-                    {canScrollLeft && (
-                      <button
-                        onClick={scrollLeft}
-                        className="absolute left-0 z-10 h-full px-1 flex items-center justify-center bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-500 hover:text-primary"
-                        aria-label="Scroll tabs left"
-                      >
-                        <ChevronLeft className="h-5 w-5" />
-                      </button>
-                    )}
-
-                    {/* Tabs container */}
-                    <div
-                      ref={tabsContainerRef}
-                      className="flex overflow-x-auto scrollbar-hide"
-                      onScroll={handleScroll}
-                      style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                    >
-                      {Object.keys(editedSalesEvaluation).map((categoryKey) => (
-                        <button
-                          key={categoryKey}
-                          className={cn(
-                            "px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0",
-                            activeTab === categoryKey
-                              ? "border-primary text-primary"
-                              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",
-                          )}
-                          onClick={() => setActiveTab(categoryKey)}
-                        >
-                          {formatEvaluationKey(categoryKey)}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Right scroll button */}
-                    {canScrollRight && (
-                      <button
-                        onClick={scrollRight}
-                        className="absolute right-0 z-10 h-full px-1 flex items-center justify-center bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-500 hover:text-primary"
-                        aria-label="Scroll tabs right"
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tab Content */}
-                <div className="p-1 rounded-lg">
-                  {activeTab && editedSalesEvaluation[activeTab] && (
-                    <div className="space-y-2">
-                      {/* Render subcategories for the active tab */}
-                      {Object.entries(editedSalesEvaluation[activeTab]).map(
-                        ([subcategoryKey, subcategoryValue]: [string, any]) => {
-                          // Skip if not an object
-                          if (!subcategoryValue || typeof subcategoryValue !== "object") {
-                            return null
-                          }
-
-                          return renderSubcategory(activeTab, subcategoryKey, subcategoryValue)
-                        },
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -907,15 +916,16 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
         />
       </div>
       <style jsx global>{`
-        .scrollbar-hide::-webkit-scrollbar 
-          display: none;
-        .scrollbar-hide 
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-      `}</style>
+       .scrollbar-hide::-webkit-scrollbar {
+         display: none;
+       }
+       .scrollbar-hide {
+         -ms-overflow-style: none;
+         scrollbar-width: none;
+       }
+     `}</style>
     </>
   )
 }
 
-// Add the default export at the end of the file
 export default SummaryTab

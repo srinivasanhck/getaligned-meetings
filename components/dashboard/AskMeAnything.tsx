@@ -372,7 +372,7 @@ const AskMeAnything = ({ meetingTitle = "this meeting", meetingId }: AskMeAnythi
   }
 
   return (
-    <div className="fixed bottom-4 right-0 z-50">
+    <div className="fixed bottom-4 right-[0.5rem] z-50">
       {/* Floating button */}
       {!isOpen && (
         <div className="relative group">
@@ -394,7 +394,7 @@ const AskMeAnything = ({ meetingTitle = "this meeting", meetingId }: AskMeAnythi
         ref={chatContainerRef}
         className={cn(
           "bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden transition-all duration-300 ease-in-out flex flex-col",
-          isOpen ? "opacity-100 scale-100 w-[30vw] h-[85vh]" : "opacity-0 scale-95 w-0 h-0 pointer-events-none",
+          isOpen ? "opacity-100 scale-100 w-[24vw] h-[85vh]" : "opacity-0 scale-95 w-0 h-0 pointer-events-none",
         )}
         style={{ maxHeight: "calc(100vh - 100px)" }}
       >

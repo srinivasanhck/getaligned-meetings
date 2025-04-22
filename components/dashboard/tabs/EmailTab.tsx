@@ -799,13 +799,13 @@ const EmailTab = ({ details }: EmailTabProps) => {
   const bccRecipients = recipients.filter((r) => r.type === "bcc")
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar p-6">
-      <div className="mx-auto bg-white rounded-lg border border-gray-200 shadow-sm">
+    <div className="h-full overflow-y-auto custom-scrollbar">
+      <div className="mx-auto bg-white rounded-lg shadow-sm">
         {/* Email Compose Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+        {/* <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-medium text-gray-800">Compose Email</h2>
           <div className="text-sm text-gray-500">Follow-up for: {meeting?.meetingTitle || "Meeting"}</div>
-        </div>
+        </div> */}
 
         {/* Email Form */}
         <div className="p-4">
@@ -818,7 +818,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
               onDrop={(e) => handleDrop(e, "to")}
             >
               <div className="flex items-center">
-                <div className="w-16 text-sm font-medium text-gray-700">To:</div>
+                <div className="w-8 text-sm font-medium text-gray-700">To:</div>
                 <div className="flex-1 flex flex-wrap gap-1 min-h-[28px]">
                   {toRecipients.map((recipient) => (
                     <div
@@ -896,7 +896,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
                 onDrop={(e) => handleDrop(e, "cc")}
               >
                 <div className="flex items-center">
-                  <div className="w-16 text-sm font-medium text-gray-700">Cc:</div>
+                  <div className="w-8 text-sm font-medium text-gray-700">Cc:</div>
                   <div className="flex-1 flex flex-wrap gap-1 min-h-[28px]">
                     {ccRecipients.map((recipient) => (
                       <div
@@ -966,7 +966,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
                 onDrop={(e) => handleDrop(e, "bcc")}
               >
                 <div className="flex items-center">
-                  <div className="w-16 text-sm font-medium text-gray-700">Bcc:</div>
+                  <div className="w-8 text-sm font-medium text-gray-700">Bcc:</div>
                   <div className="flex-1 flex flex-wrap gap-1 min-h-[28px]">
                     {bccRecipients.map((recipient) => (
                       <div
@@ -1079,7 +1079,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
             </div>
 
             {/* Email Body - Rich Text Editor */}
-            <div className="min-h-[300px] max-h-[400px] overflow-y-auto border rounded-md p-3">
+            <div className="min-h-[300px] max-h-[400px] overflow-y-auto custom-scrollbar rounded-md p-1">
               <div
                 ref={bodyEditorRef}
                 contentEditable

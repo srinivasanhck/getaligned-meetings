@@ -47,6 +47,10 @@ const meetingDetailsSlice = createSlice({
       state.selectedMeetingId = null
       state.error = null
     },
+    // Add this new reducer to update the meeting details
+    updateDetails: (state, action: PayloadAction<MeetingDetails>) => {
+      state.details = action.payload
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -74,5 +78,5 @@ const meetingDetailsSlice = createSlice({
   },
 })
 
-export const { setSelectedMeetingId, clearMeetingDetails } = meetingDetailsSlice.actions
+export const { setSelectedMeetingId, clearMeetingDetails, updateDetails } = meetingDetailsSlice.actions
 export default meetingDetailsSlice.reducer

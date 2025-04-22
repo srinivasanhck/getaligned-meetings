@@ -17,7 +17,8 @@ import CalendarAccessPopup from "../auth/CalendarAccessPopup"
 import axios from "axios"
 import { APIURL } from "@/lib/utils"
 import { getToken } from "@/services/authService"
-import { fetchMeetingDetailsThunk } from "@/lib/redux/features/meetingDetailsSlice"
+// Import the updateDetails action at the top of the file
+import { fetchMeetingDetailsThunk, updateDetails } from "@/lib/redux/features/meetingDetailsSlice"
 
 // Import tab components
 import SummaryTab from "./tabs/SummaryTab"
@@ -79,6 +80,8 @@ const MeetingDetails = ({ meetingId }: MeetingDetailsProps = {}) => {
     }
   }, [])
 
+  // Update the saveDealSummaryToBackend function to use the imported action
+
   // Function to save deal summary to backend
   const saveDealSummaryToBackend = async (updatedDealSummary: any) => {
     if (!details || !details.meeting || !details.meeting.meetingUniqueId) {
@@ -114,6 +117,22 @@ const MeetingDetails = ({ meetingId }: MeetingDetailsProps = {}) => {
       )
 
       console.log("API response:", response.data)
+
+      // Update the local Redux state with the new deal summary
+      if (details) {
+        // Create a new details object with the updated deal summary
+        const updatedDetails = {
+          ...details,
+          dealSummary: {
+            ...details.dealSummary,
+            // Update the deal summary with the new content
+            ...updatedDealSummary,
+          },
+        }
+
+        // Dispatch the updateDetails action to update the Redux store
+        dispatch(updateDetails(updatedDetails))
+      }
 
       showToast("Deal summary updated successfully", "success")
     } catch (error) {
@@ -271,7 +290,7 @@ const MeetingDetails = ({ meetingId }: MeetingDetailsProps = {}) => {
       </div>
 
       {/* Tab Content - Container */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden meeting-details-container">
         {activeTab === "summary" && <SummaryTab details={details} />}
         {activeTab === "dealSummary" && <DealSummaryTab details={details} onSave={saveDealSummaryToBackend} />}
         {activeTab === "email" && <EmailTab details={details} />}
