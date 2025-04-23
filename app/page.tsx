@@ -7,11 +7,12 @@ import Sidebar from "@/components/layout/sidebar"
 import MeetingsList from "@/components/dashboard/MeetingsList"
 import MeetingDetails from "@/components/dashboard/MeetingDetails"
 import { useAuth } from "@/contexts/AuthContext"
-import { setSelectedMeetingId } from "@/lib/redux/features/meetingDetailsSlice"
+import { setSelectedMeetingId, clearMeetingDetails } from "@/lib/redux/features/meetingDetailsSlice"
 
 export default function Home() {
   const dispatch = useAppDispatch()
   const { meetings, loading } = useAppSelector((state) => state.meetings)
+  const { selectedMeetingId } = useAppSelector((state) => state.meetingDetails)
   const { hasCalendarAccess } = useAuth()
   const initialRedirectDone = useRef(false)
 
@@ -23,9 +24,20 @@ export default function Home() {
     }
   }, [dispatch, hasCalendarAccess])
 
+  // Clear meeting details when on the home page
+  useEffect(() => {
+    // If we're on the home page and there's a selected meeting ID,
+    // we should clear it to ensure proper state management
+    if (window.location.pathname === "/" && selectedMeetingId) {
+      dispatch(clearMeetingDetails())
+    }
+  }, [dispatch, selectedMeetingId])
+
   // Handle initial redirect to meeting page
   useEffect(() => {
-    if (!loading && meetings.length > 0 && !initialRedirectDone.current) {
+    // Only do the automatic redirect if we're on the root path
+    // This prevents overriding a direct meeting URL visit
+    if (window.location.pathname === "/" && !loading && meetings.length > 0 && !initialRedirectDone.current) {
       // Sort meetings by date (newest first)
       const sortedMeetings = [...meetings].sort(
         (a, b) => new Date(b.start.dateTime).getTime() - new Date(a.start.dateTime).getTime(),
@@ -57,3 +69,4 @@ export default function Home() {
     </div>
   )
 }
+

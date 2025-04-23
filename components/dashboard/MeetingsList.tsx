@@ -187,12 +187,12 @@ const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
     return meetingStatus === "SummaryReady" || meetingStatus === "InProgress"
   }
 
+  // Update the handleMeetingClick function to properly update the URL
   const handleMeetingClick = (meetingId: string, meetingStatus: string) => {
     if (!hasCalendarAccess) {
       setShowCalendarPopup(true)
       return
     }
-    console.log("meetingStatus", meetingStatus)
 
     // Only proceed if the meeting is clickable
     if (!isMeetingClickable(meetingStatus)) {
@@ -217,9 +217,9 @@ const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
     // Set the selected meeting ID in Redux
     dispatch(setSelectedMeetingId(meetingId))
 
-    // Then update URL without full page reload
+    // Update URL with proper navigation
     if (!pathname.includes(`/meeting/${meetingId}`)) {
-      window.history.pushState({}, "", `/meeting/${meetingId}`)
+      router.push(`/meeting/${meetingId}`)
     }
   }
 
@@ -231,6 +231,22 @@ const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
       year: "numeric",
     })
   }
+
+  // Add this effect to ensure the selected meeting is highlighted in the list
+  // when the page is loaded directly with a meeting ID in the URL
+  useEffect(() => {
+    if (selectedMeetingId && meetings.length > 0) {
+      // Find the meeting in our list
+      const meetingExists = meetings.some((meeting) => meeting.id === selectedMeetingId)
+
+      // If the meeting isn't in our current list, we might need to fetch more meetings
+      // or handle this case differently (e.g., show a message)
+      if (!meetingExists && !loading && !loadingMore && hasMore && !isCustomDateRange) {
+        // Optionally load more meetings to try to find the selected one
+        loadMoreMeetings()
+      }
+    }
+  }, [selectedMeetingId, meetings, loading, loadingMore, hasMore, isCustomDateRange, loadMoreMeetings])
 
   // Render content based on state
   const renderContent = () => {

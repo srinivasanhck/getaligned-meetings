@@ -43,13 +43,13 @@ export default function RootLayout({
       <body className={figtree.className} suppressHydrationWarning>
         <ReduxProvider>
           <ToastProvider>
-            <Suspense fallback={<AuthLoadingFallback />}>
               <AuthProvider>
+            <Suspense fallback={<AuthLoadingFallback />}>
                 <AuthLoadingScreen>
                   {children}
                 </AuthLoadingScreen>
-              </AuthProvider>
             </Suspense>
+              </AuthProvider>
           </ToastProvider>
         </ReduxProvider>
       </body>

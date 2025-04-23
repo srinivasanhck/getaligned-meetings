@@ -61,7 +61,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
   const [currentInputType, setCurrentInputType] = useState<"to" | "cc" | "bcc" | null>(null)
   const [inputValue, setInputValue] = useState("")
 
-  console.log("meetings in emailTab", meeting)
+  // console.log("meetings in emailTab", meeting)
   // Convert HTML content to plain text for email sending
   const convertHtmlToPlainText = (html: string): string => {
     // Create a temporary DOM element
@@ -193,6 +193,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
         setLoading(true)
         setError(null)
         const template = await fetchEmailTemplate(meeting.meetingUniqueId)
+        console.log("template", template)
         setEmailData(template)
 
         // Check if we have Gmail access from the API response

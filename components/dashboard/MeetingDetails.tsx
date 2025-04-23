@@ -50,11 +50,15 @@ const MeetingDetails = ({ meetingId }: MeetingDetailsProps = {}) => {
   useEffect(() => {
     const idToFetch = meetingId || selectedMeetingId
 
-    if (idToFetch && hasCalendarAccess && !detailsFetched) {
-      dispatch(fetchMeetingDetailsThunk(idToFetch))
-      setDetailsFetched(true)
+    if (idToFetch && hasCalendarAccess) {
+      // Check if we already have details for this meeting
+      const shouldFetch = !details || details.meeting?.meetingUniqueId !== idToFetch
+
+      if (shouldFetch) {
+        dispatch(fetchMeetingDetailsThunk(idToFetch))
+      }
     }
-  }, [meetingId, selectedMeetingId, hasCalendarAccess, dispatch, detailsFetched])
+  }, [meetingId, selectedMeetingId, hasCalendarAccess, dispatch, details])
 
   // Reset detailsFetched when meetingId or selectedMeetingId changes
   useEffect(() => {

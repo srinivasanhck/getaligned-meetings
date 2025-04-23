@@ -52,8 +52,6 @@ const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onClick, isActive = 
         return "In Progress"
       case "BotRestricted":
         return "Bot Restricted"
-        case "MeetingLeft":
-          return "Meeting Left"
       default:
         return ""
     }
@@ -68,8 +66,6 @@ const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onClick, isActive = 
         return "bg-yellow-500"
       case "BotRestricted":
         return "bg-red-500"
-        case "MeetingLeft":
-          return "bg-red-500"
       default:
         return "bg-gray-500"
     }
