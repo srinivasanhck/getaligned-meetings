@@ -716,10 +716,10 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
                             const status = taskStatus[taskKey] || { isCompleted: false, isLoading: false, error: null }
 
                             return (
-                              <li key={`task-${taskIndex}`} className="flex items-start">
+                              <li key={`task-${taskIndex}`} className="relative pl-8 !ml-0">
                                 <button
                                   onClick={() => handleTaskStatusChange(assignee.participant, task, true)}
-                                  className="mr-2 mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary transition-colors"
+                                  className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary transition-colors"
                                   disabled={status.isLoading}
                                 >
                                   {status.isLoading ? (

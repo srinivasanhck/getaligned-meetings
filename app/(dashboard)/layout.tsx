@@ -58,7 +58,7 @@ export default function DashboardLayout({
   return (
     <ProtectedRoute>
       <div className="flex h-screen">
-        <Sidebar />
+        {/* <Sidebar /> */}
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>
     </ProtectedRoute>

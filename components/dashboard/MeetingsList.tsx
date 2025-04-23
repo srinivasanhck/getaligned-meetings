@@ -46,7 +46,7 @@ const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
   const [showCalendarPopup, setShowCalendarPopup] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
-    const { showToast } = useToast()
+  const { showToast } = useToast()
 
   // Reference to the container for scroll detection
   const containerRef = useRef<HTMLDivElement>(null)
@@ -182,17 +182,17 @@ const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
   // Sort dates in descending order (newest first)
   const sortedDates = Object.keys(groupedMeetings).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
 
-    // Check if a meeting is clickable based on its status
-    const isMeetingClickable = (meetingStatus: string) => {
-      return meetingStatus === "SummaryReady" || meetingStatus === "InProgress"
-    }
+  // Check if a meeting is clickable based on its status
+  const isMeetingClickable = (meetingStatus: string) => {
+    return meetingStatus === "SummaryReady" || meetingStatus === "InProgress"
+  }
 
-    const handleMeetingClick = (meetingId: string, meetingStatus: string) => {
+  const handleMeetingClick = (meetingId: string, meetingStatus: string) => {
     if (!hasCalendarAccess) {
       setShowCalendarPopup(true)
       return
     }
-console.log("meetingStatus",meetingStatus);
+    console.log("meetingStatus", meetingStatus)
 
     // Only proceed if the meeting is clickable
     if (!isMeetingClickable(meetingStatus)) {
@@ -217,10 +217,10 @@ console.log("meetingStatus",meetingStatus);
     // Set the selected meeting ID in Redux
     dispatch(setSelectedMeetingId(meetingId))
 
-        // Then update URL without full page reload
-        if (!pathname.includes(`/meeting/${meetingId}`)) {
-          window.history.pushState({}, "", `/meeting/${meetingId}`)
-        }
+    // Then update URL without full page reload
+    if (!pathname.includes(`/meeting/${meetingId}`)) {
+      window.history.pushState({}, "", `/meeting/${meetingId}`)
+    }
   }
 
   // Format date for display
