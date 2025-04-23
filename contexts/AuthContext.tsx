@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [lastCheckedToken, setLastCheckedToken] = useState<string | undefined>(undefined)
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
+  // const searchParams = useSearchParams()
 
   // Function to check calendar access
   const checkCalendarAccess = async (): Promise<boolean> => {
@@ -68,16 +68,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Check for auth errors in URL
-  useEffect(() => {
-    const errorParam = searchParams.get("authError")
-    if (errorParam) {
-      setAuthError(decodeURIComponent(errorParam))
-      // Remove the error parameter from the URL
-      const newUrl = window.location.pathname
-      window.history.replaceState({}, document.title, newUrl)
-    }
-  }, [searchParams])
+  // // Check for auth errors in URL
+  // useEffect(() => {
+  //   const errorParam = searchParams.get("authError")
+  //   if (errorParam) {
+  //     setAuthError(decodeURIComponent(errorParam))
+  //     // Remove the error parameter from the URL
+  //     const newUrl = window.location.pathname
+  //     window.history.replaceState({}, document.title, newUrl)
+  //   }
+  // }, [searchParams])
 
   useEffect(() => {
     // Skip auth check on callback page to prevent interference
