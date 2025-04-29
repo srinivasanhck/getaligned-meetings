@@ -12,6 +12,10 @@ import GmailAccessPopup from "@/components/auth/GmailAccessPopup"
 import { getToken } from "@/services/authService"
 import { APIURL } from "@/config"
 
+// Add these imports at the top
+import EmailTemplateSidebar from "@/components/dashboard/EmailTemplateSidebar"
+import { type EmailTemplateType, EmailLength, EmailTone, type EmailTemplateOptions } from "@/services/emailService"
+
 interface EmailTabProps {
   details: MeetingDetails
 }
@@ -61,124 +65,113 @@ const EmailTab = ({ details }: EmailTabProps) => {
   const [currentInputType, setCurrentInputType] = useState<"to" | "cc" | "bcc" | null>(null)
   const [inputValue, setInputValue] = useState("")
 
-  // console.log("meetings in emailTab", meeting)
-  // Convert HTML content to plain text for email sending
-  const convertHtmlToPlainText = (html: string): string => {
-    // Create a temporary DOM element
-    const tempDiv = document.createElement("div")
-    tempDiv.innerHTML = html
+  // Add these state variables inside the EmailTab component
+  const [showTemplateSidebar, setShowTemplateSidebar] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplateType | null>(null)
+  const [selectedLength, setSelectedLength] = useState<EmailLength | null>(null)
+  const [selectedTone, setSelectedTone] = useState<EmailTone | null>(null)
+  const [isChangingTemplate, setIsChangingTemplate] = useState(false)
 
-    // Process the DOM to create formatted plain text
-    const processNode = (node: Node, level = 0, inList = false): string => {
-      const result = ""
-
-      // Text node - just return the text
-      if (node.nodeType === Node.TEXT_NODE) {
-        return node.textContent || ""
-      }
-
-      // Element node - process based on tag
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as HTMLElement
-        const tagName = element.tagName.toLowerCase()
-
-        // Handle different HTML elements
-        switch (tagName) {
-          case "p":
-            // Add double newline for paragraphs
-            const innerText = Array.from(element.childNodes)
-              .map((child) => processNode(child, level, inList))
-              .join("")
-            return innerText + "\n\n"
-
-          case "br":
-            // Single newline for line breaks
-            return "\n"
-
-          case "strong":
-          case "b":
-            // Bold text
-            return Array.from(element.childNodes)
-              .map((child) => processNode(child, level, inList))
-              .join("")
-
-          case "em":
-          case "i":
-            // Italic text
-            return Array.from(element.childNodes)
-              .map((child) => processNode(child, level, inList))
-              .join("")
-
-          case "ul":
-          case "ol":
-            // Lists - process each list item
-            return Array.from(element.childNodes)
-              .map((child) => processNode(child, level, true))
-              .join("")
-
-          case "li":
-            // List items - add indentation and bullet/number
-            const indent = "  ".repeat(level)
-            const prefix = inList ? "- " : ""
-            const itemText = Array.from(element.childNodes)
-              .map((child) => processNode(child, level + 1, false))
-              .join("")
-            return `${indent}${prefix}${itemText}`
-
-          case "div":
-            // Divs - process children
-            return Array.from(element.childNodes)
-              .map((child) => processNode(child, level, inList))
-              .join("")
-
-          case "span":
-            // Spans - just process children
-            return Array.from(element.childNodes)
-              .map((child) => processNode(child, level, inList))
-              .join("")
-
-          case "a":
-            // Links - include the text and URL
-            const linkText = Array.from(element.childNodes)
-              .map((child) => processNode(child, level, inList))
-              .join("")
-            return linkText
-
-          case "h1":
-          case "h2":
-          case "h3":
-          case "h4":
-          case "h5":
-          case "h6":
-            // Headings - make them stand out
-            const headingText = Array.from(element.childNodes)
-              .map((child) => processNode(child, level, inList))
-              .join("")
-            return headingText + "\n\n"
-
-          default:
-            // Default - just process children
-            return Array.from(element.childNodes)
-              .map((child) => processNode(child, level, inList))
-              .join("")
-        }
-      }
-
-      return result
-    }
-
-    // Process the entire document
-    let plainText = processNode(tempDiv)
-
-    // Clean up extra whitespace and newlines
-    plainText = plainText
-      .replace(/\n\n\n+/g, "\n\n") // Replace 3+ newlines with 2
-      .replace(/^\s+|\s+$/g, "") // Trim whitespace
-
-    return plainText
-  }
+  console.log("meetings in emailTab", meeting)
 
   // Update the useEffect that initializes recipients to ensure it uses meeting attendees' emails
+
+  // Add this function inside the EmailTab component
+  const handleApplyTemplateChanges = async () => {
+    if (!selectedTemplate) {
+      showToast("Please select a template type", "error")
+      return
+    }
+
+    try {
+      setIsChangingTemplate(true)
+      setLoading(true)
+      setError(null)
+
+      // Build options object
+      const options: EmailTemplateOptions = {
+        templateType: selectedTemplate,
+      }
+
+      // Add optional parameters if they're selected
+      if (selectedLength && selectedLength !== EmailLength.DONT_SPECIFY) {
+        options.length = selectedLength
+      }
+
+      if (selectedTone && selectedTone !== EmailTone.DONT_SPECIFY) {
+        options.tone = selectedTone
+      }
+
+      // Fetch new template with options
+      const template = await fetchEmailTemplate(meeting.meetingUniqueId, options)
+
+      // Update email data
+      setEmailData(template)
+
+      // Initialize recipients from template and meeting attendees
+      const initialRecipients: Recipient[] = []
+
+      // If we have meeting attendees, use them as the primary source for recipients
+      if (details.meeting?.attendees && details.meeting.attendees.length > 0) {
+        // Get unique emails from attendees
+        const attendeeEmails = new Set(details.meeting.attendees.map((a) => a.email))
+
+        // Add each attendee as a recipient
+        attendeeEmails.forEach((email) => {
+          initialRecipients.push({
+            id: `to-${email}-${Math.random().toString(36).substring(2, 9)}`,
+            email,
+            type: "to",
+          })
+        })
+
+        // Update the emailData.to field as well
+        setEmailData((prev) => ({
+          ...prev,
+          to: Array.from(attendeeEmails),
+        }))
+      } else {
+        // If no attendees, fall back to template recipients
+        template.to.forEach((email) => {
+          initialRecipients.push({
+            id: `to-${email}-${Math.random().toString(36).substring(2, 9)}`,
+            email,
+            type: "to",
+          })
+        })
+      }
+
+      // Add CC and BCC recipients if they exist
+      template.cc?.forEach((email) => {
+        initialRecipients.push({
+          id: `cc-${email}-${Math.random().toString(36).substring(2, 9)}`,
+          email,
+          type: "cc",
+        })
+      })
+
+      template.bcc?.forEach((email) => {
+        initialRecipients.push({
+          id: `bcc-${email}-${Math.random().toString(36).substring(2, 9)}`,
+          email,
+          type: "bcc",
+        })
+      })
+
+      setRecipients(initialRecipients)
+
+      // Close the sidebar
+      setShowTemplateSidebar(false)
+      showToast("Email template updated successfully", "success")
+    } catch (err) {
+      console.error("Failed to update email template:", err)
+      setError(err instanceof Error ? err.message : "Failed to update email template")
+      showToast("Failed to update email template", "error")
+    } finally {
+      setLoading(false)
+      setIsChangingTemplate(false)
+    }
+  }
 
   // Fetch email template when component mounts
   useEffect(() => {
@@ -193,7 +186,6 @@ const EmailTab = ({ details }: EmailTabProps) => {
         setLoading(true)
         setError(null)
         const template = await fetchEmailTemplate(meeting.meetingUniqueId)
-        console.log("template", template)
         setEmailData(template)
 
         // Check if we have Gmail access from the API response
@@ -769,7 +761,9 @@ const EmailTab = ({ details }: EmailTabProps) => {
       <div className="flex h-full items-center justify-center p-6">
         <div className="text-center">
           <Loader className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-gray-500">Loading email template...</p>
+          <p className="text-gray-500">
+            {isChangingTemplate ? "Updating email template..." : "Loading email template..."}
+          </p>
         </div>
       </div>
     )
@@ -810,6 +804,33 @@ const EmailTab = ({ details }: EmailTabProps) => {
 
         {/* Email Form */}
         <div className="p-4">
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-sm text-gray-500">Follow-up for: {meeting?.meetingTitle || "Meeting"}</div>
+            <button
+              onClick={() => setShowTemplateSidebar(true)}
+              className="flex items-center gap-1.5 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="lucide lucide-file-text"
+              >
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" x2="8" y1="13" y2="13" />
+                <line x1="16" x2="8" y1="17" y2="17" />
+                <line x1="10" x2="8" y1="9" y2="9" />
+              </svg>
+              Change Template
+            </button>
+          </div>
           <div className="space-y-4">
             {/* To Field */}
             <div
@@ -1150,6 +1171,19 @@ const EmailTab = ({ details }: EmailTabProps) => {
           </div>
         </div>
       </div>
+
+      {/* Template Selection Sidebar */}
+      <EmailTemplateSidebar
+        isOpen={showTemplateSidebar}
+        onClose={() => setShowTemplateSidebar(false)}
+        selectedTemplate={selectedTemplate}
+        selectedLength={selectedLength}
+        selectedTone={selectedTone}
+        onTemplateChange={setSelectedTemplate}
+        onLengthChange={setSelectedLength}
+        onToneChange={setSelectedTone}
+        onApply={handleApplyTemplateChanges}
+      />
 
       {/* Gmail Access Popup */}
       {showGmailPopup && <GmailAccessPopup onClose={() => setShowGmailPopup(false)} />}

@@ -1,6 +1,40 @@
 import { APIURL } from "@/lib/utils"
 import { getToken } from "@/services/authService"
 
+// Add these new types at the top of the file
+export enum EmailTemplateType {
+  SALES_FOLLOW_UP = "SALES_FOLLOW_UP",
+  DEAL_CLOSING = "DEAL_CLOSING",
+  MEETING_FOLLOW_UP = "MEETING_FOLLOW_UP",
+  CLIENT_CHECKIN = "CLIENT_CHECKIN",
+  PROMOTION_ANNOUNCEMENT = "PROMOTION_ANNOUNCEMENT",
+  PARTNERSHIP_INTRO = "PARTNERSHIP_INTRO",
+  ONBOARDING_WELCOME = "ONBOARDING_WELCOME",
+  CUSTOMER_FEEDBACK = "CUSTOMER_FEEDBACK",
+  INACTIVE_CUSTOMER_REACTIVATION = "INACTIVE_CUSTOMER_REACTIVATION",
+  PRODUCT_UPDATE_ANNOUNCEMENT = "PRODUCT_UPDATE_ANNOUNCEMENT",
+}
+
+export enum EmailLength {
+  SHORT = "SHORT",
+  MEDIUM = "MEDIUM",
+  LONG = "LONG",
+  DONT_SPECIFY = "DONT_SPECIFY",
+}
+
+export enum EmailTone {
+  FORMAL = "FORMAL",
+  INFORMAL = "INFORMAL",
+  NEUTRAL = "NEUTRAL",
+  DONT_SPECIFY = "DONT_SPECIFY",
+}
+
+export interface EmailTemplateOptions {
+  templateType?: EmailTemplateType
+  length?: EmailLength
+  tone?: EmailTone
+}
+
 export interface EmailTemplate {
   to: string[]
   cc?: string[]
@@ -25,46 +59,70 @@ interface ApiEmailResponse {
   scope?: string
 }
 
-// Helper function to format email body
+
 const formatEmailBody = (body: string): string => {
-  // Start with the original content
-  let formattedContent = body
+  if (!body) return "";
 
-  // Handle bold text
-  formattedContent = formattedContent.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+  let formatted = body;
 
-  // Replace double newlines with paragraph breaks (with proper spacing)
-  formattedContent = formattedContent.replace(/\n\n/g, "<br><br>")
+  // Convert markdown-style bold (**text**) to <strong>
+  formatted = formatted.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
-  // Replace single newlines (not preceded or followed by another newline)
-  // This regex looks for a newline that is not preceded by a newline and not followed by a newline
-  formattedContent = formattedContent.replace(/(?<!\n)\n(?!\n)/g, "<br>")
+  // Remove dash before bold headers like "- **Key Decisions:**"
+  formatted = formatted.replace(/^- <strong>(.*?):<\/strong>/gm, "<strong>$1:</strong>");
 
-  // Format section headers with proper spacing
-  formattedContent = formattedContent.replace(
-    /- (Key Decisions|Challenges & Resolutions|Action Items & Next Steps|Stakeholders Involved):/g,
-    "<br><br>- <strong>$1:</strong>",
-  )
+  // Convert bullet points (excluding section headers) to <li>
+  formatted = formatted.replace(/\n\s*-\s(?!<strong>)(.*?)(?=\n|$)/g, "<li>$1</li>");
 
-  // Format bullet points with proper indentation
-  formattedContent = formattedContent.replace(/\n {2}- /g, "<br>&nbsp;&nbsp;- ")
+  // Wrap consecutive <li> elements with a <ul>
+  formatted = formatted.replace(/(?:<li>.*?<\/li>\s*)+/g, match => {
+    const cleaned = match.replace(/\s*\n\s*/g, ""); // remove internal newlines between <li>
+    return `<ul>${cleaned}</ul>`;
+  });
 
-  return formattedContent
-}
+  // Replace double newlines with paragraph breaks
+  formatted = formatted.replace(/\n\n+/g, "<br><br>");
 
-// Update the fetchEmailTemplate function to include all meeting attendees in the "to" field
+  // Replace single newlines (only if not already handled by lists)
+  formatted = formatted.replace(/(?<!<\/li>)\n(?!\n)/g, "<br>");
 
-export async function fetchEmailTemplate(meetingId: string): Promise<EmailTemplate> {
+  return formatted;
+};
+
+
+// Update the fetchEmailTemplate function to accept the new options
+export async function fetchEmailTemplate(meetingId: string, options?: EmailTemplateOptions): Promise<EmailTemplate> {
   try {
     const token = getToken()
     if (!token) {
       throw new Error("Authentication required")
     }
 
+    // Build request body based on provided options
+    const requestBody: any = {
+      meetingId: meetingId,
+    }
+
+    // Add optional parameters if they exist
+    if (options?.templateType) {
+      requestBody.templateType = options.templateType
+    }
+
+    if (options?.length) {
+      requestBody.length = options.length
+    }
+
+    if (options?.tone) {
+      requestBody.tone = options.tone
+    }
+console.log("rquestBody",requestBody);
     const response = await fetch(`${APIURL}/api/v1/meeting-bot/follow-up-emails?meetingId=${meetingId}`, {
+      method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {
@@ -76,9 +134,9 @@ export async function fetchEmailTemplate(meetingId: string): Promise<EmailTempla
     }
 
     const data: ApiEmailResponse = await response.json()
-
+console.log("email data at eservice",data);
     // Check if we have a scope error
-    const hasGmailScope = data.scope !== "false"
+    const hasGmailScope = data?.scope ? true : false
 
     // Parse recipients from comma-separated string to array
     // Note: We'll still parse this, but we'll use meeting attendees in the EmailTab component

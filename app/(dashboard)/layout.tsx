@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import Sidebar from "@/components/layout/sidebar"
 import ProtectedRoute from "@/components/auth/ProtectedRoute"
 import { useAuth } from "@/contexts/AuthContext"
+import { shouldRefreshCalendarAccess } from "@/services/authService"
 
 export default function DashboardLayout({
   children,
@@ -17,7 +18,7 @@ export default function DashboardLayout({
     loading,
     calendarAccessLoading,
     checkCalendarAccess,
-    shouldRefreshCalendarAccess,
+    // shouldRefreshCalendarAccess,
   } = useAuth()
   const [isChecking, setIsChecking] = useState(true)
 
@@ -57,9 +58,9 @@ export default function DashboardLayout({
   // If not logged in, ProtectedRoute will handle it
   return (
     <ProtectedRoute>
-      <div className="flex h-screen">
+      <div className="flex h-screen overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-hidden">{children}</main>
+        <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </ProtectedRoute>
   )

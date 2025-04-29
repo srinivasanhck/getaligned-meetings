@@ -33,3 +33,31 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|images/|logo.png).*)",
   ],
 }
+
+
+// <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+// <Card>
+//   <CardContent className="p-4">
+//     <h3 className="text-sm font-medium text-gray-500">Total Completed Tasks</h3>
+//     <p className="text-2xl font-bold">{stats.totalCompletedTasks}</p>
+//   </CardContent>
+// </Card>
+// <Card>
+//   <CardContent className="p-4">
+//     <h3 className="text-sm font-medium text-gray-500">In Progress Action Items</h3>
+//     <p className="text-2xl font-bold">{stats.inProgressActionItems}</p>
+//   </CardContent>
+// </Card>
+// <Card>
+//   <CardContent className="p-4">
+//     <h3 className="text-sm font-medium text-gray-500">Completed Action Items</h3>
+//     <p className="text-2xl font-bold">{stats.completedActionItems}</p>
+//   </CardContent>
+// </Card>
+// <Card>
+//   <CardContent className="p-4">
+//     <h3 className="text-sm font-medium text-gray-500">Ideas Shared Tasks</h3>
+//     <p className="text-2xl font-bold">{stats.inProgressIdeasSharedTasks}</p>
+//   </CardContent>
+// </Card>
+// </div>

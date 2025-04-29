@@ -3,9 +3,37 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Calendar, LogOut } from "lucide-react"
+import { Home, Calendar, LogOut, PuzzleIcon as PuzzlePiece, BarChartIcon as ChartBar, ListChecks } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
+
+const sidebarItems = [
+  {
+    icon: Home,
+    label: "Dashboard",
+    href: "/dashboard",
+  },
+  {
+    icon: Calendar,
+    label: "Upcoming",
+    href: "/upcoming",
+  },
+  {
+    icon: ListChecks,
+    label: "Next Steps",
+    href: "/next-steps",
+  },
+  {
+    icon: PuzzlePiece,
+    label: "Integrations",
+    href: "/integrations",
+  },
+  {
+    icon: ChartBar,
+    label: "Analytics",
+    href: "/analytics",
+  },
+]
 
 const Sidebar = () => {
   const pathname = usePathname()
@@ -26,11 +54,14 @@ const Sidebar = () => {
 
   // Update active item based on pathname
   useEffect(() => {
-    // if (pathname === "/" || pathname.includes("/dashboard")) {
-      if (pathname === "/" || pathname.includes("/dashboard") || pathname.includes("/meeting/")) {
+    if (pathname === "/" || pathname.includes("/dashboard") || pathname.includes("/meeting/")) {
       setActiveItem("home")
     } else if (pathname.includes("/upcoming")) {
       setActiveItem("calendar")
+    } else if (pathname.includes("/next-steps")) {
+      setActiveItem("next-steps")
+    } else if (pathname.includes("/integrations")) {
+      setActiveItem("integrations")
     }
   }, [pathname])
 
@@ -80,6 +111,44 @@ const Sidebar = () => {
             </Link>
             <div className="absolute left-full ml-2 hidden rounded z-[99] bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
               Upcoming Meetings
+            </div>
+          </div>
+
+          {/* Next Steps Icon */}
+          <div className="group relative">
+            <Link
+              href="/next-steps"
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-md transition-colors",
+                activeItem === "next-steps"
+                  ? "bg-gray-100 text-primary"
+                  : "text-gray-500 hover:bg-gray-50 hover:text-primary",
+              )}
+              onClick={() => setActiveItem("next-steps")}
+            >
+              <ListChecks size={20} />
+            </Link>
+            <div className="absolute left-full ml-2 hidden rounded z-[99] bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
+              Next Steps
+            </div>
+          </div>
+
+          {/* Integrations Icon */}
+          <div className="group relative">
+            <Link
+              href="/integrations"
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-md transition-colors",
+                activeItem === "integrations"
+                  ? "bg-gray-100 text-primary"
+                  : "text-gray-500 hover:bg-gray-50 hover:text-primary",
+              )}
+              onClick={() => setActiveItem("integrations")}
+            >
+              <PuzzlePiece size={20} />
+            </Link>
+            <div className="absolute left-full ml-2 hidden rounded z-[99] bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
+              Integrations
             </div>
           </div>
         </div>

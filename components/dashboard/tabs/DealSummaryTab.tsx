@@ -3,15 +3,35 @@
 import { useEffect } from "react"
 
 import { useState, useRef } from "react"
-import { Edit, Save,  X, Download, Bold,Italic, Underline, List, ListOrdered, Heading1, Heading2, Link } from "lucide-react"
+import {
+  Edit,
+  Save,
+  X,
+  Download,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  ListOrdered,
+  Heading1,
+  Heading2,
+  Link,
+} from "lucide-react"
 import type { MeetingDetails } from "@/types/meetingDetails"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
+
+// Add the import for useToast
+import { useToast } from "@/components/ui/toast"
+import { isHubspotConnected } from "@/services/hubspotService"
+import HubspotContactPopup from "@/components/hubspot/HubspotContactPopup"
 
 interface DealSummaryTabProps {
   details: MeetingDetails
   onSave?: (updatedDealSummary: any) => void
+  showToast?: (message: string, type: "success" | "error" | "info") => void
 }
 
 // Helper function to check if a string is already HTML
@@ -444,9 +464,17 @@ const cleanupHTMLContent = (html: string): string => {
   return tempDiv.innerHTML
 }
 
-const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
+const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSummaryTabProps) => {
   const { dealSummary } = details
-  console.log("details",details)
+  console.log("details", details)
+
+  // Add these state variables inside the DealSummaryTab component
+  const [hubspotConnected, setHubspotConnected] = useState<boolean>(false)
+  const [isCheckingConnection, setIsCheckingConnection] = useState<boolean>(true)
+  const router = useRouter()
+
+  // Add this line inside the component to get the showToast function
+  const { showToast } = useToast()
 
   // State for HTML content of left and right sides
   const [leftSideHTML, setLeftSideHTML] = useState<string>("")
@@ -516,6 +544,37 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
       rightEditableRef.current.innerHTML = rightSideHTMLMap[activeRightTab]
     }
   }, [isEditMode, activeRightTab, rightSideHTMLMap])
+
+  // Add this useEffect to check HubSpot connection status
+  useEffect(() => {
+    const checkHubspotConnection = async () => {
+      try {
+        setIsCheckingConnection(true)
+        const connected = await isHubspotConnected()
+        setHubspotConnected(connected)
+      } catch (error) {
+        console.error("Error checking HubSpot connection:", error)
+      } finally {
+        setIsCheckingConnection(false)
+      }
+    }
+
+    checkHubspotConnection()
+  }, [])
+
+  // Add this state variable inside the DealSummaryTab component
+  const [showHubspotPopup, setShowHubspotPopup] = useState(false)
+
+  // Add this function to handle HubSpot button click
+  const handleHubspotClick = () => {
+    if (!hubspotConnected) {
+      // Redirect to integrations page if not connected
+      router.push("/integrations")
+    } else {
+      // Show the HubSpot contact popup
+      setShowHubspotPopup(true)
+    }
+  }
 
   // Toggle edit mode
   const toggleEditMode = () => {
@@ -914,6 +973,25 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
                   Edit Deal Summary
                 </div>
               </div>
+              <div className="group relative">
+                <button
+                  onClick={handleHubspotClick}
+                  disabled={isCheckingConnection}
+                  className="flex items-center justify-center p-2 bg-[#ff7a59] text-white rounded-md hover:bg-[#ff8f73] transition-colors shadow-sm disabled:opacity-50"
+                  aria-label={hubspotConnected ? "Add to HubSpot" : "Connect HubSpot"}
+                >
+                  {isCheckingConnection ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zM5.92 14.27c-.71-.26-1.3-.67-1.76-1.23-.46-.56-.77-1.23-.93-2.01-.16-.78-.16-1.62 0-2.5.16-.88.47-1.66.93-2.32.46-.66 1.05-1.19 1.76-1.57.71-.38 1.53-.57 2.46-.57.93 0 1.75.19 2.46.57.71.38 1.3.91 1.76 1.57.46.66.77 1.44.93 2.32.16.88.16 1.72 0 2.5-.16.78-.47 1.45-.93 2.01-.46.56-1.05.97-1.76 1.23-.71.26-1.53.39-2.46.39-.93 0-1.75-.13-2.46-.39z" />
+                    </svg>
+                  )}
+                </button>
+                <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                  {hubspotConnected ? "Add to HubSpot" : "Connect HubSpot"}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="absolute top-6 right-6 z-10 flex space-x-2">
@@ -1020,6 +1098,18 @@ const DealSummaryTab = ({ details, onSave }: DealSummaryTabProps) => {
           </div>
         </div>
       </div>
+      {showHubspotPopup && hubspotConnected && (
+        <HubspotContactPopup
+          onClose={() => setShowHubspotPopup(false)}
+          onSuccess={() => {
+            setShowHubspotPopup(false)
+            parentShowToast
+              ? parentShowToast("Contact added to HubSpot successfully", "success")
+              : showToast("Contact added to HubSpot successfully", "success")
+          }}
+          dealData={dealSummary?.["right-side"]?.dealData || null}
+        />
+      )}
     </div>
   )
 }
