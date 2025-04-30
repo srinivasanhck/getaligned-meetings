@@ -66,7 +66,7 @@ export default function NextStepsList({ tasks, lastTaskElementRef }: NextStepsLi
           taskId: task.id,
           meetingId: task.meeting.meetingUniqueId,
           participant: task.meetingParticipant,
-          taskTitle: task.title,
+          taskTitle: task.description,
         }),
       )
 

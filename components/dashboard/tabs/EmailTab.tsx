@@ -3,7 +3,20 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import { Paperclip, X, AlertCircle, Loader, Send, Bold, Italic, Underline, List, Link, Check } from "lucide-react"
+import {
+  Paperclip,
+  X,
+  AlertCircle,
+  Loader,
+  Send,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  Link,
+  Check,
+  Upload,
+} from "lucide-react"
 import { fetchEmailTemplate, type EmailTemplate } from "@/services/emailService"
 import { useToast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
@@ -56,6 +69,8 @@ const EmailTab = ({ details }: EmailTabProps) => {
   const ccInputRef = useRef<HTMLInputElement>(null)
   const bccInputRef = useRef<HTMLInputElement>(null)
   const [draggedItem, setDraggedItem] = useState<string | null>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
 
   // Email suggestions state
   const [emailSuggestions, setEmailSuggestions] = useState<EmailSuggestion[]>([])
@@ -73,6 +88,121 @@ const EmailTab = ({ details }: EmailTabProps) => {
   const [isChangingTemplate, setIsChangingTemplate] = useState(false)
 
   console.log("meetings in emailTab", meeting)
+  // Convert HTML content to plain text for email sending
+  const convertHtmlToPlainText = (html: string): string => {
+    // Create a temporary DOM element
+    const tempDiv = document.createElement("div")
+    tempDiv.innerHTML = html
+
+    // Process the DOM to create formatted plain text
+    const processNode = (node: Node, level = 0, inList = false): string => {
+      const result = ""
+
+      // Text node - just return the text
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.textContent || ""
+      }
+
+      // Element node - process based on tag
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const element = node as HTMLElement
+        const tagName = element.tagName.toLowerCase()
+
+        // Handle different HTML elements
+        switch (tagName) {
+          case "p":
+            // Add double newline for paragraphs
+            const innerText = Array.from(element.childNodes)
+              .map((child) => processNode(child, level, inList))
+              .join("")
+            return innerText + "\n\n"
+
+          case "br":
+            // Single newline for line breaks
+            return "\n"
+
+          case "strong":
+          case "b":
+            // Bold text
+            return Array.from(element.childNodes)
+              .map((child) => processNode(child, level, inList))
+              .join("")
+
+          case "em":
+          case "i":
+            // Italic text
+            return Array.from(element.childNodes)
+              .map((child) => processNode(child, level, inList))
+              .join("")
+
+          case "ul":
+          case "ol":
+            // Lists - process each list item
+            return Array.from(element.childNodes)
+              .map((child) => processNode(child, level, true))
+              .join("")
+
+          case "li":
+            // List items - add indentation and bullet/number
+            const indent = "  ".repeat(level)
+            const prefix = inList ? "- " : ""
+            const itemText = Array.from(element.childNodes)
+              .map((child) => processNode(child, level + 1, false))
+              .join("")
+            return `${indent}${prefix}${itemText}`
+
+          case "div":
+            // Divs - process children
+            return Array.from(element.childNodes)
+              .map((child) => processNode(child, level, inList))
+              .join("")
+
+          case "span":
+            // Spans - just process children
+            return Array.from(element.childNodes)
+              .map((child) => processNode(child, level, inList))
+              .join("")
+
+          case "a":
+            // Links - include the text and URL
+            const linkText = Array.from(element.childNodes)
+              .map((child) => processNode(child, level, inList))
+              .join("")
+            return linkText
+
+          case "h1":
+          case "h2":
+          case "h3":
+          case "h4":
+          case "h5":
+          case "h6":
+            // Headings - make them stand out
+            const headingText = Array.from(element.childNodes)
+              .map((child) => processNode(child, level, inList))
+              .join("")
+            return headingText + "\n\n"
+
+          default:
+            // Default - just process children
+            return Array.from(element.childNodes)
+              .map((child) => processNode(child, level, inList))
+              .join("")
+        }
+      }
+
+      return result
+    }
+
+    // Process the entire document
+    let plainText = processNode(tempDiv)
+
+    // Clean up extra whitespace and newlines
+    plainText = plainText
+      .replace(/\n\n\n+/g, "\n\n") // Replace 3+ newlines with 2
+      .replace(/^\s+|\s+$/g, "") // Trim whitespace
+
+    return plainText
+  }
 
   // Update the useEffect that initializes recipients to ensure it uses meeting attendees' emails
 
@@ -483,7 +613,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
   }
 
   // Handle drag over
-  const handleDragOver = (e: React.DragEvent, type: "to" | "cc" | "bcc") => {
+  const handleDragOverRecipient = (e: React.DragEvent, type: "to" | "cc" | "bcc") => {
     e.preventDefault()
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.classList.add("bg-gray-100")
@@ -491,7 +621,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
   }
 
   // Handle drag leave
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeaveRecipient = (e: React.DragEvent) => {
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.classList.remove("bg-gray-100")
     }
@@ -609,6 +739,61 @@ const EmailTab = ({ details }: EmailTabProps) => {
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
+    }
+  }
+
+  // Process files from drag and drop
+  const processFiles = (files: FileList) => {
+    if (!files || files.length === 0) return
+
+    // Convert FileList to array and add to attachments
+    const newAttachments = Array.from(files).map((file) => ({
+      name: file.name,
+      url: URL.createObjectURL(file),
+      size: file.size,
+    }))
+
+    setEmailData((prev) => ({
+      ...prev,
+      attachments: [...(prev.attachments || []), ...newAttachments],
+    }))
+
+    showToast(`${files.length} file${files.length > 1 ? "s" : ""} attached successfully`, "success")
+  }
+
+  // Handle file drag events
+  const handleDragEnterFile = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingFile(true)
+  }
+
+  const handleDragOverFile = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isDraggingFile) setIsDraggingFile(true)
+  }
+
+  const handleDragLeaveFile = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    // Only set dragging to false if we're leaving the drop zone
+    // and not entering a child element
+    if (dropZoneRef.current && !dropZoneRef.current.contains(e.relatedTarget as Node)) {
+      setIsDraggingFile(false)
+    }
+  }
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingFile(false)
+
+    // Get files from the drop event
+    const { files } = e.dataTransfer
+    if (files && files.length > 0) {
+      processFiles(files)
     }
   }
 
@@ -835,8 +1020,8 @@ const EmailTab = ({ details }: EmailTabProps) => {
             {/* To Field */}
             <div
               className="border-b border-gray-200 pb-2 relative"
-              onDragOver={(e) => handleDragOver(e, "to")}
-              onDragLeave={handleDragLeave}
+              onDragOver={(e) => handleDragOverRecipient(e, "to")}
+              onDragLeave={handleDragLeaveRecipient}
               onDrop={(e) => handleDrop(e, "to")}
             >
               <div className="flex items-center">
@@ -913,8 +1098,8 @@ const EmailTab = ({ details }: EmailTabProps) => {
             {showCc && (
               <div
                 className="border-b border-gray-200 pb-2 relative"
-                onDragOver={(e) => handleDragOver(e, "cc")}
-                onDragLeave={handleDragLeave}
+                onDragOver={(e) => handleDragOverRecipient(e, "cc")}
+                onDragLeave={handleDragLeaveRecipient}
                 onDrop={(e) => handleDrop(e, "cc")}
               >
                 <div className="flex items-center">
@@ -983,8 +1168,8 @@ const EmailTab = ({ details }: EmailTabProps) => {
             {showBcc && (
               <div
                 className="border-b border-gray-200 pb-2 relative"
-                onDragOver={(e) => handleDragOver(e, "bcc")}
-                onDragLeave={handleDragLeave}
+                onDragOver={(e) => handleDragOverRecipient(e, "bcc")}
+                onDragLeave={handleDragLeaveRecipient}
                 onDrop={(e) => handleDrop(e, "bcc")}
               >
                 <div className="flex items-center">
@@ -1100,8 +1285,26 @@ const EmailTab = ({ details }: EmailTabProps) => {
               </button>
             </div>
 
-            {/* Email Body - Rich Text Editor */}
-            <div className="min-h-[300px] max-h-[400px] overflow-y-auto custom-scrollbar rounded-md p-1">
+            {/* Email Body - Rich Text Editor with Drag & Drop */}
+            <div
+              ref={dropZoneRef}
+              className={cn(
+                "relative min-h-[300px] max-h-[400px] overflow-y-auto custom-scrollbar rounded-md p-1",
+                isDraggingFile ? "bg-primary/5 border-2 border-dashed border-primary/40" : "",
+              )}
+              onDragEnter={handleDragEnterFile}
+              onDragOver={handleDragOverFile}
+              onDragLeave={handleDragLeaveFile}
+              onDrop={handleFileDrop}
+            >
+              {isDraggingFile && (
+                <div className="absolute inset-0 flex items-center justify-center bg-primary/5 pointer-events-none">
+                  <div className="text-center">
+                    <Upload className="h-10 w-10 text-primary/60 mx-auto mb-2" />
+                    <p className="text-primary/80 font-medium">Drop files to attach</p>
+                  </div>
+                </div>
+              )}
               <div
                 ref={bodyEditorRef}
                 contentEditable
@@ -1144,6 +1347,7 @@ const EmailTab = ({ details }: EmailTabProps) => {
                 Attach
               </button>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
+              <div className="text-xs text-gray-500 ml-2">or drag & drop files</div>
             </div>
 
             <button

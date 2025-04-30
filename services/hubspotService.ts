@@ -2,7 +2,7 @@ import { getToken } from "@/services/authService"
 import { APIURL } from "@/lib/utils"
 
 // Hubspot OAuth configuration
-const HUBSPOT_CLIENT_ID = "a2a70091-d3fc-45dc-a0b6-ea5b559d0eba"
+const HUBSPOT_CLIENT_ID = process.env.NEXT_PUBLIC_HUBSPOT_CLIENT_ID
 const REDIRECT_URI = typeof window !== "undefined" ? `${window.location.origin}/integrations/hubspot/callback` : ""
 
 // Define the scopes needed for the integration

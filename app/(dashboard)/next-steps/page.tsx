@@ -35,7 +35,7 @@ export default function NextStepsPage() {
   const [loadingMore, setLoadingMore] = useState(false)
 
   const observer = useRef<IntersectionObserver | null>(null)
-  const lastTaskElementRef = useRef<HTMLDivElement | null>(null)
+  const lastTaskElementRef = useRef<any>(null)
 
   console.log("Current tasks count:", tasks.length)
   console.log("Loading state:", loading)

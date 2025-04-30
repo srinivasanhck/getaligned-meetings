@@ -96,17 +96,6 @@ const formatEndDateToISO = (date: Date): string => {
   return `${year}-${month}-${day}T23:59:59`
 }
 
-// Get date range for the initial fetch (last month to today)
-const getInitialDateRange = () => {
-  const endDate = new Date()
-  const startDate = new Date()
-  startDate.setMonth(startDate.getMonth() - 1)
-
-  return {
-    startDate: formatStartDateToISO(startDate),
-    endDate: formatEndDateToISO(endDate),
-  }
-}
 
 // Async thunk for fetching next steps
 export const fetchNextSteps = createAsyncThunk(
@@ -117,7 +106,7 @@ export const fetchNextSteps = createAsyncThunk(
       console.log(`Fetching next steps from ${startDate} to ${endDate}`)
 
       const response = await fetch(
-        `https://api.getaligned.work/core/api/v1/meeting-bot/summary/filter-task?startDate=${startDate}&endDate=${endDate}`,
+        `${APIURL}/api/v1/meeting-bot/summary/filter-task?startDate=${startDate}&endDate=${endDate}`,
         {
           method: "GET",
           headers: {
@@ -159,9 +148,7 @@ export const completeTask = createAsyncThunk(
       console.log(`Completing task: ${taskTitle} for participant: ${participant}`)
 
       const response = await fetch(
-        `${APIURL}/api/v1/meeting-transcript-summary/remove-task?meetingId=${meetingId}&participant=${encodeURIComponent(
-          participant,
-        )}&taskToRemove=${encodeURIComponent(taskTitle)}`,
+        `${APIURL}/api/v1/meeting-transcript-summary/remove-task?meetingId=${meetingId}&participant=${encodeURIComponent(participant)}&taskToRemove=${encodeURIComponent(taskTitle)}`,
         {
           method: "GET",
           headers: {
