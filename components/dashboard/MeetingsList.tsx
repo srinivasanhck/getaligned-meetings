@@ -52,6 +52,12 @@ const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
 
+  // Add this ref to track if we've already tried to load more meetings for a specific ID
+  const hasTriedToLoadMore = useRef<boolean>(false)
+
+  // Ref to track if we've tried to load more meetings for a specific ID
+  // const hasTriedToLoadMore = useRef(false)
+
   // Show auth error if present
   useEffect(() => {
     if (authError) {
@@ -239,14 +245,38 @@ const MeetingsList = ({ selectedMeetingId }: MeetingsListProps = {}) => {
       // Find the meeting in our list
       const meetingExists = meetings.some((meeting) => meeting.id === selectedMeetingId)
 
-      // If the meeting isn't in our current list, we might need to fetch more meetings
-      // or handle this case differently (e.g., show a message)
+      // Only try to load more meetings once if the meeting isn't found
       if (!meetingExists && !loading && !loadingMore && hasMore && !isCustomDateRange) {
-        // Optionally load more meetings to try to find the selected one
-        loadMoreMeetings()
+        if (!hasTriedToLoadMore.current) {
+          hasTriedToLoadMore.current = true
+          // Try to load more meetings just once
+          loadMoreMeetings()
+        }
       }
     }
   }, [selectedMeetingId, meetings, loading, loadingMore, hasMore, isCustomDateRange, loadMoreMeetings])
+
+  // Reset the hasTriedToLoadMore ref when the selectedMeetingId changes
+  useEffect(() => {
+    hasTriedToLoadMore.current = false
+  }, [selectedMeetingId])
+
+  // Add this effect to ensure the selected meeting is highlighted in the list
+  // when the page is loaded directly with a meeting ID in the URL
+  // useEffect(() => {
+  //   if (selectedMeetingId && meetings.length > 0) {
+  //     // Find the meeting in our list
+  //     const meetingExists = meetings.some((meeting) => meeting.id === selectedMeetingId)
+
+  //     // Only try to load more meetings once if the meeting isn't found
+  //     if (!meetingExists && !loading && !loadingMore && hasMore && !isCustomDateRange && !hasTriedToLoadMore.current) {
+  //       // Mark that we've tried to load more meetings for this ID
+  //       hasTriedToLoadMore.current = true
+  //       // Try to load more meetings just once
+  //       loadMoreMeetings()
+  //     }
+  //   }
+  // }, [selectedMeetingId, meetings, loading, loadingMore, hasMore, isCustomDateRange, loadMoreMeetings])
 
   // Render content based on state
   const renderContent = () => {
