@@ -68,14 +68,14 @@ export default function HubspotButton({
           <div ref={menuRef} className="absolute top-full right-0 mt-3 flex flex-col gap-2 min-w-[180px]">
             <button
               onClick={handleCreateContact}
-              className="flex items-center bg-[#8034CB] text-white px-4 py-3 rounded-lg shadow-lg hover:bg-[#6a2ba9] transition-colors whitespace-nowrap active:scale-95 w-full justify-center"
+              className="flex items-center bg-[#8034CB] text-white px-4 py-3 rounded-lg shadow-lg hover:bg-[#6a2ba9] transition-colors whitespace-nowrap active:scale-95 w-full"
             >
               <User className="h-5 w-5 mr-2" />
               <span className="text-sm font-medium">Create Contact</span>
             </button>
             <button
               onClick={handleToggleSelectMode}
-              className="flex items-center bg-[#8034CB] text-white px-4 py-3 rounded-lg shadow-lg hover:bg-[#6a2ba9] transition-colors whitespace-nowrap active:scale-95 w-full justify-center"
+              className="flex items-center bg-[#8034CB] text-white px-4 py-3 rounded-lg shadow-lg hover:bg-[#6a2ba9] transition-colors whitespace-nowrap active:scale-95 w-full"
             >
               <MessageSquarePlus className="h-5 w-5 mr-2" />
               <span className="text-sm font-medium">Add Notes to Contact</span>
