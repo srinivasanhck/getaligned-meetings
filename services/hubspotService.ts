@@ -139,7 +139,8 @@ export async function getAllHubspotContacts(): Promise<any[]> {
     const data = await response.json()
     console.log("All contacts response:", data)
 
-    return data.results || []
+    // return data.results || []
+    return  []
   } catch (error) {
     console.error("Error fetching HubSpot contacts:", error)
     throw error

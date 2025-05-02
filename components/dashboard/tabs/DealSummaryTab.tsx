@@ -1,22 +1,10 @@
 "use client"
 
+import type React from "react"
 import { useEffect } from "react"
-
 import { useState, useRef } from "react"
-import {
-  Edit,
-  Save,
-  X,
-  Download,
-  Bold,
-  Italic,
-  Underline,
-  List,
-  ListOrdered,
-  Heading1,
-  Heading2,
-  Link,
-} from "lucide-react"
+import { Edit, Save, X, Download,Bold, Italic, Underline, List, ListOrdered, Heading1,Heading2,
+  Link, MessageSquarePlus, User } from "lucide-react"
 import type { MeetingDetails } from "@/types/meetingDetails"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
@@ -25,8 +13,178 @@ import { useRouter } from "next/navigation"
 
 // Add the import for useToast
 import { useToast } from "@/components/ui/toast"
-import { isHubspotConnected } from "@/services/hubspotService"
+import { isHubspotConnected, getAllHubspotContacts } from "@/services/hubspotService"
 import HubspotContactPopup from "@/components/hubspot/HubspotContactPopup"
+import { getToken } from "@/services/authService"
+import { APIURL } from "@/lib/utils"
+import axios from "axios"
+import { HubspotIcon } from "@/components/icons/HubspotIcon"
+
+// Contact Selection Modal Component
+interface ContactSelectionModalProps {
+  content: string
+  onClose: () => void
+  contacts: any[]
+  isLoading: boolean
+  onSubmit: (contactId: string, note: string) => Promise<void>
+}
+
+const ContactSelectionModal: React.FC<ContactSelectionModalProps> = ({
+  content, onClose, contacts, isLoading, onSubmit }) => {
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  const [note, setNote] = useState(content)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+
+  const filteredContacts = contacts.filter((contact) => {
+    const firstName = (contact.properties.firstname || "").toLowerCase()
+    const lastName = (contact.properties.lastname || "").toLowerCase()
+    const email = (contact.properties.email || "").toLowerCase()
+    const company = (contact.properties.company || "").toLowerCase()
+    const search = searchTerm.toLowerCase()
+
+    return firstName.includes(search) || lastName.includes(search) || email.includes(search) || company.includes(search)
+  })
+
+  const handleSubmit = async () => {
+    if (!selectedContactId) return
+
+    try {
+      setIsSubmitting(true)
+      await onSubmit(selectedContactId, note)
+      onClose()
+    } catch (error) {
+      console.error("Error submitting note:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-800">Add as Hubspot Note</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-4 border-b">
+          <div className="mb-4">
+            <label htmlFor="note" className="block text-sm font-medium text-gray-700 mb-1">
+              Note Content
+            </label>
+            <textarea
+              id="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="w-full border border-gray-300 rounded-md p-2 text-sm min-h-[100px]"
+              placeholder="Enter note content"
+            />
+          </div>
+        </div>
+
+        <div className="p-4 border-b">
+          <div className="mb-2">
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+              Select Contact
+            </label>
+            <input
+              type="text"
+              id="search"
+              placeholder="Search contacts..."
+              className="w-full border border-gray-300 rounded-md p-2 text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2">
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : filteredContacts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No contacts found</div>
+          ) : (
+            <div className="space-y-2">
+              {filteredContacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                    selectedContactId === contact.id
+                      ? "border-primary bg-primary/5"
+                      : "border-gray-200 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setSelectedContactId(contact.id)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-medium">
+                        {contact.properties.firstname || ""} {contact.properties.lastname || ""}
+                        {!contact.properties.firstname && !contact.properties.lastname && "No Name"}
+                      </div>
+                      <div className="text-sm text-gray-500">{contact.properties.email || "No Email"}</div>
+                      {contact.properties.company && (
+                        <div className="text-xs text-gray-400 mt-1">{contact.properties.company}</div>
+                      )}
+                    </div>
+                    <div
+                      className={`w-5 h-5 rounded-full border ${
+                        selectedContactId === contact.id ? "border-primary bg-primary" : "border-gray-300"
+                      } flex items-center justify-center`}
+                    >
+                      {selectedContactId === contact.id && (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-3 w-3 text-white"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t flex justify-end space-x-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedContactId || isSubmitting}
+            className={`px-4 py-2 rounded-md text-sm font-medium text-white ${
+              !selectedContactId || isSubmitting ? "bg-primary/50 cursor-not-allowed" : "bg-primary hover:bg-primary/90"
+            }`}
+          >
+            {isSubmitting ? (
+              <>
+                <span className="inline-block animate-spin mr-2">⟳</span> Adding...
+              </>
+            ) : (
+              "Add Note"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 interface DealSummaryTabProps {
   details: MeetingDetails
@@ -39,8 +197,6 @@ const isHTML = (str: string): boolean => {
   if (typeof str !== "string") return false
   return /<\/?[a-z][\s\S]*>/i.test(str)
 }
-
-// Modify the jsonToHTML function to check for meaningful values before displaying
 
 // Convert JSON to HTML for initial display
 const jsonToHTML = (data: any): string => {
@@ -494,6 +650,19 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
 
   const [rightSideKeys, setRightSideKeys] = useState<string[]>([])
 
+  // State for hubspot note functionality
+  const [isHubspotSelectMode, setIsHubspotSelectMode] = useState(false)
+  const [selectedContent, setSelectedContent] = useState<string | null>(null)
+  const [showNotePopup, setShowNotePopup] = useState(false)
+  const [showHubspotPopup, setShowHubspotPopup] = useState(false)
+
+  // Add these new state variables
+  const [hubspotContacts, setHubspotContacts] = useState<any[]>([])
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false)
+
+  // Add state for menu visibility
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
   // Initialize content when dealSummary changes
   useEffect(() => {
     if (dealSummary) {
@@ -545,6 +714,20 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
     }
   }, [isEditMode, activeRightTab, rightSideHTMLMap])
 
+  // Add this function to fetch contacts
+  const fetchHubspotContacts = async () => {
+    try {
+      setIsLoadingContacts(true)
+      const contacts = await getAllHubspotContacts()
+      setHubspotContacts(contacts)
+    } catch (error) {
+      console.error("Error fetching Hubspot contacts:", error)
+      showToast("Failed to load Hubspot contacts", "error")
+    } finally {
+      setIsLoadingContacts(false)
+    }
+  }
+
   // Add this useEffect to check HubSpot connection status
   useEffect(() => {
     const checkHubspotConnection = async () => {
@@ -552,6 +735,10 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
         setIsCheckingConnection(true)
         const connected = await isHubspotConnected()
         setHubspotConnected(connected)
+
+        if (connected) {
+          fetchHubspotContacts()
+        }
       } catch (error) {
         console.error("Error checking HubSpot connection:", error)
       } finally {
@@ -562,10 +749,7 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
     checkHubspotConnection()
   }, [])
 
-  // Add this state variable inside the DealSummaryTab component
-  const [showHubspotPopup, setShowHubspotPopup] = useState(false)
-
-  // Add this function to handle HubSpot button click
+  // Add this function to handle HubSpot button click at the top (for contacts)
   const handleHubspotClick = () => {
     if (!hubspotConnected) {
       // Redirect to integrations page if not connected
@@ -573,6 +757,55 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
     } else {
       // Show the HubSpot contact popup
       setShowHubspotPopup(true)
+    }
+  }
+
+  // Add this function to handle HubSpot note button click (bottom right corner)
+  const toggleHubspotSelectMode = () => {
+    if (!hubspotConnected) {
+      router.push("/integrations")
+      return
+    }
+
+    setIsHubspotSelectMode((prev) => !prev)
+    setIsMenuOpen(false)
+
+    if (isHubspotSelectMode) {
+      showToast("Exited Hubspot select mode", "info")
+    } else {
+      showToast("Click on any content to add as a Hubspot note", "info")
+    }
+  }
+
+  // Add this function to handle content selection
+  const handleContentSelect = (event: React.MouseEvent<HTMLElement>) => {
+    if (!isHubspotSelectMode) return
+
+    // Get the clicked element
+    const target = event.target as HTMLElement
+
+    // Get the text content of the clicked element
+    let content = ""
+
+    // If it's a list item or paragraph, get its text content
+    if (target.tagName === "LI" || target.tagName === "P") {
+      content = target.textContent || ""
+    }
+    // If it's a heading, get its text content
+    else if (/^H[1-6]$/.test(target.tagName)) {
+      content = target.textContent || ""
+    }
+    // Otherwise, try to find the closest paragraph, list item, or heading
+    else {
+      const closestElement = target.closest("p, li, h1, h2, h3, h4, h5, h6")
+      content = closestElement ? closestElement.textContent || "" : ""
+    }
+
+    // Trim the content and ensure it's not empty
+    content = content.trim()
+    if (content) {
+      setSelectedContent(content)
+      setShowNotePopup(true)
     }
   }
 
@@ -848,6 +1081,32 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
     }
   }
 
+  // Add a function to handle note submission
+  const handleSubmitNote = async (contactId: string, noteContent: string) => {
+    try {
+      const token = getToken()
+      await axios.post(
+        `${APIURL}/api/v1/hubspot/create-note`,
+        {
+          contactObjectId: contactId,
+          noteBody: noteContent,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      )
+
+      showToast("Note added successfully!", "success")
+    } catch (error) {
+      console.error("Error adding note:", error)
+      showToast("Failed to add note", "error")
+      throw error
+    }
+  }
+
   // Get the right side tabs (top-level keys)
   const rightSideTabs = rightSideKeys
 
@@ -860,8 +1119,51 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
     }
   }, [rightSideKeys, activeRightTab])
 
+  // Add this useEffect to close the menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Don't close the menu if we're clicking inside the menu container
+      const menuContainer = document.getElementById("hubspot-menu-container")
+      if (menuContainer && menuContainer.contains(event.target as Node)) {
+        return
+      }
+
+      // Don't close the menu if we're clicking the main button (that's handled separately)
+      const mainButton = document.getElementById("hubspot-main-button")
+      if (mainButton && mainButton.contains(event.target as Node)) {
+        return
+      }
+
+      // Otherwise, close the menu
+      if (isMenuOpen) {
+        setIsMenuOpen(false)
+      }
+    }
+
+    // Add event listener to document
+    document.addEventListener("mousedown", handleClickOutside)
+
+    // Clean up the event listener
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isMenuOpen])
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      {/* Hubspot Select Mode Indicator */}
+      {isHubspotSelectMode && (
+        <div className="bg-primary/10 text-primary font-medium p-3 rounded-lg mb-4 flex items-center justify-between sticky top-0 z-30">
+          <span>Hubspot Select Mode: Click on any content to add as a note</span>
+          <button
+            onClick={toggleHubspotSelectMode}
+            className="text-sm bg-white text-primary px-3 py-1 rounded-md hover:bg-gray-100"
+          >
+            Exit
+          </button>
+        </div>
+      )}
+
       {/* Rich Text Editing Toolbar - Only visible in edit mode */}
       {isEditMode && (
         <div className="sticky top-0 z-20 bg-white border-b border-gray-200 p-2 flex items-center space-x-1 shadow-sm">
@@ -973,24 +1275,81 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
                   Edit Deal Summary
                 </div>
               </div>
+
+              {/* Hubspot Button */}
               <div className="group relative">
                 <button
-                  onClick={handleHubspotClick}
-                  disabled={isCheckingConnection}
-                  className="flex items-center justify-center p-2 bg-[#ff7a59] text-white rounded-md hover:bg-[#ff8f73] transition-colors shadow-sm disabled:opacity-50"
-                  aria-label={hubspotConnected ? "Add to HubSpot" : "Connect HubSpot"}
+                  id="hubspot-main-button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!hubspotConnected) {
+                      router.push("/integrations")
+                    } else {
+                      setIsMenuOpen(!isMenuOpen)
+                    }
+                  }}
+                  className={`flex items-center justify-center transition-all 
+                    ${
+                    isHubspotSelectMode
+                      ? ""
+                      // ? "bg-primary text-white"
+                      : 
+                      ""
+                      // "bg-white text-primary border border-primary/20 hover:bg-gray-50"
+                  } 
+                  ${isMenuOpen ? "ring-2 ring-primary/20" : ""}`}
+                  title={hubspotConnected ? "HubSpot Options" : "Connect HubSpot"}
                 >
-                  {isCheckingConnection ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  ) : (
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                      <path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zM5.92 14.27c-.71-.26-1.3-.67-1.76-1.23-.46-.56-.77-1.23-.93-2.01-.16-.78-.16-1.62 0-2.5.16-.88.47-1.66.93-2.32.46-.66 1.05-1.19 1.76-1.57.71-.38 1.53-.57 2.46-.57.93 0 1.75.19 2.46.57.71.38 1.3.91 1.76 1.57.46.66.77 1.44.93 2.32.16.88.16 1.72 0 2.5-.16.78-.47 1.45-.93 2.01-.46.56-1.05.97-1.76 1.23-.71.26-1.53.39-2.46.39-.93 0-1.75-.13-2.46-.39z" />
-                    </svg>
-                  )}
+                  <HubspotIcon className="h-8 w-8" />
+                  {/* <HubspotIcon size={42} className="h-10 w-10" /> */}
                 </button>
-                <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                  {hubspotConnected ? "Add to HubSpot" : "Connect HubSpot"}
-                </div>
+
+                {/* Menu items - Absolutely positioned below the button */}
+                {isMenuOpen && (
+                  <div
+                    id="hubspot-menu-container"
+                    className="absolute top-full right-0 mt-3 flex flex-col gap-2 z-50"
+                    onClick={(e) => e.stopPropagation()} // Prevent clicks from closing the menu
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowHubspotPopup(true)
+                        setIsMenuOpen(false)
+                      }}
+                      className="flex items-center bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-primary/90 transition-colors whitespace-nowrap active:scale-95"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      <span className="text-sm font-medium">Create Contact</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleHubspotSelectMode()
+                        setIsMenuOpen(false)
+                      }}
+                      className="flex items-center bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-primary/90 transition-colors whitespace-nowrap active:scale-95"
+                    >
+                      <MessageSquarePlus className="h-4 w-4 mr-2" />
+                      <span className="text-sm font-medium">Add Notes to Contact</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Tooltip for non-connected state - only shows on hover */}
+                {!hubspotConnected && !isCheckingConnection && (
+                  <div className="absolute top-full right-0 mt-2 bg-gray-800 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    Connect HubSpot
+                  </div>
+                )}
+
+                {/* Loading indicator */}
+                {isCheckingConnection && (
+                  <div className="absolute top-0 right-0 -mt-1 -mr-1 h-3 w-3">
+                    <div className="animate-ping absolute h-full w-full rounded-full bg-primary opacity-75"></div>
+                    <div className="relative rounded-full h-3 w-3 bg-primary"></div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -1016,8 +1375,9 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
           {!isEditMode && (
             <div
               ref={leftContentRef}
-              className="prose prose-sm max-w-none"
+              className={`prose prose-sm max-w-none ${isHubspotSelectMode ? "cursor-pointer" : ""}`}
               dangerouslySetInnerHTML={{ __html: leftSideHTML }}
+              onClick={isHubspotSelectMode ? handleContentSelect : undefined}
             />
           )}
 
@@ -1073,8 +1433,9 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
               {!isEditMode && activeRightTab && rightSideHTMLMap[activeRightTab] && (
                 <div
                   ref={rightContentRef}
-                  className="prose prose-sm max-w-none deal-summary-content"
+                  className={`prose prose-sm max-w-none deal-summary-content ${isHubspotSelectMode ? "cursor-pointer" : ""}`}
                   dangerouslySetInnerHTML={{ __html: rightSideHTMLMap[activeRightTab] }}
+                  onClick={isHubspotSelectMode ? handleContentSelect : undefined}
                 />
               )}
 
@@ -1098,9 +1459,13 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
           </div>
         </div>
       </div>
+
+      {/* Hubspot Contact Popup */}
       {showHubspotPopup && hubspotConnected && (
         <HubspotContactPopup
-          onClose={() => setShowHubspotPopup(false)}
+          onClose={() => {
+            setShowHubspotPopup(false)
+          }}
           onSuccess={() => {
             setShowHubspotPopup(false)
             parentShowToast
@@ -1110,6 +1475,46 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
           dealData={dealSummary?.["right-side"]?.dealData || null}
         />
       )}
+
+      {/* Note Popup */}
+      {showNotePopup && selectedContent && (
+        <ContactSelectionModal
+          content={selectedContent}
+          onClose={() => {
+            setShowNotePopup(false)
+            setSelectedContent(null)
+          }}
+          contacts={hubspotContacts}
+          isLoading={isLoadingContacts}
+          onSubmit={handleSubmitNote}
+        />
+      )}
+
+      <style jsx global>{`
+        ${
+          isHubspotSelectMode
+            ? `
+             /* Apply hover styles to both left and right side content */
+          .prose p:hover, 
+          .prose li:hover,
+          .prose h1:hover,
+          .prose h2:hover,
+          .prose h3:hover,
+          .prose h4:hover,
+          .deal-summary-content p:hover, 
+          .deal-summary-content li:hover,
+          .deal-summary-content h1:hover,
+          .deal-summary-content h2:hover,
+          .deal-summary-content h3:hover,
+          .deal-summary-content h4:hover {
+            background-color: #E5DCF3;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+          }
+        `
+            : ""
+        }
+      `}</style>
     </div>
   )
 }

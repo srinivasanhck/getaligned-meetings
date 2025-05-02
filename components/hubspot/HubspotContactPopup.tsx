@@ -19,6 +19,7 @@ interface HubspotContactPopupProps {
     phone?: string
   }
   dealData?: any // This will be dealSummary.right-side.dealData
+  initialNote?: string
 }
 
 interface CustomerData {
@@ -31,7 +32,7 @@ interface CustomerData {
   // Add any other potential fields
 }
 
-const HubspotContactPopup = ({ onClose, onSuccess, initialData, dealData }: HubspotContactPopupProps) => {
+const HubspotContactPopup = ({ onClose, onSuccess, initialData, dealData, initialNote }: HubspotContactPopupProps) => {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -44,6 +45,7 @@ const HubspotContactPopup = ({ onClose, onSuccess, initialData, dealData }: Hubs
   const [success, setSuccess] = useState(false)
   const [extractedCustomers, setExtractedCustomers] = useState<CustomerData[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null)
+  const [noteContent, setNoteContent] = useState<string>(initialNote || "")
 
   // Extract customer data from the dealData
   useEffect(() => {

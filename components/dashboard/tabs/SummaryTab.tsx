@@ -25,6 +25,9 @@ import { APIURL } from "@/lib/utils"
 import { getToken } from "@/services/authService"
 import axios from "axios"
 import AskMeAnything from "../AskMeAnything"
+import { getAllHubspotContacts, isHubspotConnected } from "@/services/hubspotService"
+import HubspotButton from "@/components/hubspot/HubspotButton"
+import HubspotContactPopup from "@/components/hubspot/HubspotContactPopup"
 
 // Task management interfaces
 interface TaskStatus {
@@ -192,6 +195,177 @@ const apiClient = async (url: string, options: RequestInit = {}) => {
   return response.json()
 }
 
+// Contact Selection Modal Component
+interface ContactSelectionModalProps {
+  content: string
+  onClose: () => void
+  contacts: any[]
+  isLoading: boolean
+  onSubmit: (contactId: string, note: string) => Promise<void>
+}
+
+const ContactSelectionModal: React.FC<ContactSelectionModalProps> = ({
+  content,
+  onClose,
+  contacts,
+  isLoading,
+  onSubmit,
+}) => {
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  const [note, setNote] = useState(content)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+
+  const filteredContacts = contacts.filter((contact) => {
+    const firstName = (contact.properties.firstname || "").toLowerCase()
+    const lastName = (contact.properties.lastname || "").toLowerCase()
+    const email = (contact.properties.email || "").toLowerCase()
+    const company = (contact.properties.company || "").toLowerCase()
+    const search = searchTerm.toLowerCase()
+
+    return firstName.includes(search) || lastName.includes(search) || email.includes(search) || company.includes(search)
+  })
+
+  const handleSubmit = async () => {
+    if (!selectedContactId) return
+
+    try {
+      setIsSubmitting(true)
+      await onSubmit(selectedContactId, note)
+      onClose()
+    } catch (error) {
+      console.error("Error submitting note:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-800">Add as Hubspot Note</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-4 border-b">
+          <div className="mb-4">
+            <label htmlFor="note" className="block text-sm font-medium text-gray-700 mb-1">
+              Note Content
+            </label>
+            <textarea
+              id="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="w-full border border-gray-300 rounded-md p-2 text-sm min-h-[100px]"
+              placeholder="Enter note content"
+            />
+          </div>
+        </div>
+
+        <div className="p-4 border-b">
+          <div className="mb-2">
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+              Select Contact
+            </label>
+            <input
+              type="text"
+              id="search"
+              placeholder="Search contacts..."
+              className="w-full border border-gray-300 rounded-md p-2 text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2">
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : filteredContacts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No contacts found</div>
+          ) : (
+            <div className="space-y-2">
+              {filteredContacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                    selectedContactId === contact.id
+                      ? "border-primary bg-primary/5"
+                      : "border-gray-200 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setSelectedContactId(contact.id)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-medium">
+                        {contact.properties.firstname || ""} {contact.properties.lastname || ""}
+                        {!contact.properties.firstname && !contact.properties.lastname && "No Name"}
+                      </div>
+                      <div className="text-sm text-gray-500">{contact.properties.email || "No Email"}</div>
+                      {contact.properties.company && (
+                        <div className="text-xs text-gray-400 mt-1">{contact.properties.company}</div>
+                      )}
+                    </div>
+                    <div
+                      className={`w-5 h-5 rounded-full border ${
+                        selectedContactId === contact.id ? "border-primary bg-primary" : "border-gray-300"
+                      } flex items-center justify-center`}
+                    >
+                      {selectedContactId === contact.id && (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-3 w-3 text-white"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t flex justify-end space-x-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedContactId || isSubmitting}
+            className={`px-4 py-2 rounded-md text-sm font-medium text-white ${
+              !selectedContactId || isSubmitting ? "bg-primary/50 cursor-not-allowed" : "bg-primary hover:bg-primary/90"
+            }`}
+          >
+            {isSubmitting ? (
+              <>
+                <span className="inline-block animate-spin mr-2">⟳</span> Adding...
+              </>
+            ) : (
+              "Add Note"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const SummaryTab = ({ details }: SummaryTabProps) => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [isLoadingVideo, setIsLoadingVideo] = useState(false)
@@ -215,6 +389,21 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
   const [canScrollRight, setCanScrollRight] = useState(false)
   const tabsContainerRef = useRef<HTMLDivElement>(null)
 
+  // Hubspot integration states
+  const [hubspotContacts, setHubspotContacts] = useState<any[]>([])
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false)
+  const [isHubspotEnabled, setIsHubspotEnabled] = useState(false)
+  const [selectedContent, setSelectedContent] = useState<string | null>(null)
+  const [showContactSelectionModal, setShowContactSelectionModal] = useState(false)
+  const [isAddingNote, setIsAddingNote] = useState(false)
+  const [showHubspotContactPopup, setShowHubspotContactPopup] = useState(false)
+
+  // New state for Hubspot select mode
+  const [hubspotSelectMode, setHubspotSelectMode] = useState(false)
+
+  // New state to control HubspotButton visibility
+  const [showHubspotButton, setShowHubspotButton] = useState(true)
+
   // Initialize edited sales evaluation data and set the first tab as active
   useEffect(() => {
     if (salesEvaluation && Object.keys(salesEvaluation).length > 0) {
@@ -227,6 +416,24 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
       }
     }
   }, [salesEvaluation, activeTab])
+
+  // Check if Hubspot is connected and fetch contacts
+  useEffect(() => {
+    const checkHubspotConnection = async () => {
+      try {
+        const connected = await isHubspotConnected()
+        setIsHubspotEnabled(connected)
+
+        if (connected) {
+          fetchHubspotContacts()
+        }
+      } catch (error) {
+        console.error("Error checking Hubspot connection:", error)
+      }
+    }
+
+    checkHubspotConnection()
+  }, [])
 
   // Format evaluation key for display
   const formatEvaluationKey = (key: string): string => {
@@ -271,6 +478,78 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
       setLocalTasksAssigned(details.tasksAssigned)
     }
   }, [details.tasksAssigned])
+
+  // Fetch Hubspot contacts
+  const fetchHubspotContacts = async () => {
+    try {
+      setIsLoadingContacts(true)
+      const contacts = await getAllHubspotContacts()
+      setHubspotContacts(contacts)
+    } catch (error) {
+      console.error("Error fetching Hubspot contacts:", error)
+      showToast("Failed to load Hubspot contacts", "error")
+    } finally {
+      setIsLoadingContacts(false)
+    }
+  }
+
+  // Toggle Hubspot select mode
+  const toggleHubspotSelectMode = () => {
+    if (!isHubspotEnabled) {
+      showToast("Hubspot integration is not enabled", "error")
+      return
+    }
+
+    setHubspotSelectMode((prev) => !prev)
+
+    // Hide the button when entering select mode, show it when exiting
+    if (!hubspotSelectMode) {
+      setShowHubspotButton(false)
+      showToast("Click on any content to add as a Hubspot note", "info")
+    } else {
+      setShowHubspotButton(true)
+      showToast("Exited Hubspot select mode", "info")
+    }
+  }
+
+  // Handle selecting content in Hubspot select mode
+  const handleSelectContent = (content: string) => {
+    if (!hubspotSelectMode) return
+
+    setSelectedContent(content)
+    setShowContactSelectionModal(true)
+  }
+
+  // Handle submitting a note to a contact
+  const handleSubmitNote = async (contactId: string, noteContent: string) => {
+    try {
+      setIsAddingNote(true)
+
+      // Use your existing API to create a note
+      const token = getToken()
+      await axios.post(
+        `${APIURL}/api/v1/hubspot/create-note`,
+        {
+          contactObjectId: contactId,
+          noteBody: noteContent,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      )
+
+      showToast("Note added successfully!", "success")
+    } catch (error) {
+      console.error("Error adding note:", error)
+      showToast("Failed to add note", "error")
+      throw error
+    } finally {
+      setIsAddingNote(false)
+    }
+  }
 
   const handleLoadVideo = async () => {
     if (!meetingId) return
@@ -323,6 +602,12 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
 
   // Handle task status change
   const handleTaskStatusChange = async (participant: string, task: string, isCompleted: boolean) => {
+    // If in Hubspot select mode, treat this as a content selection
+    if (hubspotSelectMode) {
+      handleSelectContent(task)
+      return
+    }
+
     const taskKey = `${participant}:${task}`
 
     // Don't proceed if already in that state or loading
@@ -442,7 +727,6 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
       const updatedValues = [...current[lastPart].value]
       updatedValues[index] = newValue
       current[lastPart].value = updatedValues
-
       return newState
     })
   }
@@ -597,10 +881,13 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
           Array.isArray(subcategoryData.value) &&
           subcategoryData.value.length > 0 && (
             <div>
-              {/* <span className="text-sm font-medium text-gray-700 block mb-1">Feedback:</span> */}
               <ul className="list-disc pl-5 space-y-1">
                 {subcategoryData.value.map((item: string, index: number) => (
-                  <li key={index} className="text-sm text-gray-600">
+                  <li
+                    key={index}
+                    className={`text-sm text-gray-600 ${hubspotSelectMode ? "cursor-pointer hover:bg-primary/5" : ""}`}
+                    onClick={() => hubspotSelectMode && handleSelectContent(item)}
+                  >
                     {item}
                   </li>
                 ))}
@@ -664,7 +951,40 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
     <>
       <div className="h-full flex justify-between">
         {/* Left Column - 60% width with independent scrolling */}
-        <div className="w-[68%] h-full overflow-y-auto scrollbar-none p-6 pr-3">
+        <div
+          className={`w-[68%] h-full relative overflow-y-auto scrollbar-none p-6 pr-3 ${hubspotSelectMode ? "bg-primary/5" : ""}`}
+        >
+          {/* Header section with title and HubSpot button */}
+          <div className="flex justify-between items-center mb-4">
+            {/* HubSpot Button - Only show when not in select mode or contact popup */}
+            {showHubspotButton && (
+              <div className="z-30">
+                <HubspotButton
+                  isConnected={isHubspotEnabled}
+                  onCreateContact={() => {
+                    setShowHubspotContactPopup(true)
+                    setShowHubspotButton(false)
+                  }}
+                  onToggleSelectMode={toggleHubspotSelectMode}
+                  isSelectModeActive={hubspotSelectMode}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Hubspot Select Mode Banner - Moved below the header */}
+          {hubspotSelectMode && (
+            <div className="bg-primary/10 text-primary font-medium p-3 rounded-lg mb-4 flex items-center justify-between">
+              <span>Click on any content to add as a note</span>
+              <button
+                onClick={toggleHubspotSelectMode}
+                className="text-sm bg-white text-primary px-3 py-1 rounded-md hover:bg-gray-100"
+              >
+                Exit
+              </button>
+            </div>
+          )}
+
           <div className="space-y-6">
             {/* Keywords */}
             {keywords && Array.isArray(keywords) && keywords.length > 0 && (
@@ -674,7 +994,10 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
                   {keywords.map((keyword, index) => (
                     <span
                       key={index}
-                      className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                      className={`inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary ${
+                        hubspotSelectMode ? "cursor-pointer hover:bg-primary/20" : ""
+                      }`}
+                      onClick={() => hubspotSelectMode && handleSelectContent(keyword)}
                     >
                       {keyword}
                     </span>
@@ -690,7 +1013,13 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
                 <h2 className="text-[16px] font-semibold text-black mb-3">Meeting Summary</h2>
                 <ul className="space-y-3 list-disc ml-4">
                   {listSummary.map((point, index) => (
-                    <li key={index} className="p-1 rounded-lg text-black text-sm">
+                    <li
+                      key={index}
+                      className={`p-1 rounded-lg text-black text-sm ${
+                        hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
+                      }`}
+                      onClick={() => hubspotSelectMode && handleSelectContent(point)}
+                    >
                       {point}
                     </li>
                   ))}
@@ -702,7 +1031,6 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
             {filteredTasksAssigned.length > 0 && (
               <div>
                 <h2 className="text-[16px] font-semibold text-black mb-3">Action Items</h2>
-                {/* <div className="space-y-4"> */}
                 <div className="space-y-4">
                   {filteredTasksAssigned.map((assignee, index) => (
                     <div key={index} className="pt-0.5 pb-2 px-4">
@@ -716,18 +1044,26 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
                             const status = taskStatus[taskKey] || { isCompleted: false, isLoading: false, error: null }
 
                             return (
-                              <li key={`task-${taskIndex}`} className="relative pl-8 !ml-0">
-                                <button
-                                  onClick={() => handleTaskStatusChange(assignee.participant, task, true)}
-                                  className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary transition-colors"
-                                  disabled={status.isLoading}
-                                >
-                                  {status.isLoading ? (
-                                    <Loader className="h-5 w-5 animate-spin text-primary" />
-                                  ) : (
-                                    <Circle className="h-5 w-5" />
-                                  )}
-                                </button>
+                              <li
+                                key={`task-${taskIndex}`}
+                                className={`relative pl-8 !ml-0 ${
+                                  hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
+                                }`}
+                                onClick={() => hubspotSelectMode && handleSelectContent(task)}
+                              >
+                                {!hubspotSelectMode && (
+                                  <button
+                                    onClick={() => handleTaskStatusChange(assignee.participant, task, true)}
+                                    className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary transition-colors"
+                                    disabled={status.isLoading}
+                                  >
+                                    {status.isLoading ? (
+                                      <Loader className="h-5 w-5 animate-spin text-primary" />
+                                    ) : (
+                                      <Circle className="h-5 w-5" />
+                                    )}
+                                  </button>
+                                )}
                                 <span className="text-sm text-black">{task}</span>
                               </li>
                             )
@@ -741,19 +1077,26 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
                             const status = taskStatus[taskKey] || { isCompleted: true, isLoading: false, error: null }
 
                             return (
-                              <li key={`completed-${taskIndex}`} className="relative pl-8 !ml-0">
-                                <button
-                                  onClick={() => handleTaskStatusChange(assignee.participant, task, false)}
-                                  // className="mr-2 mt-0.5 flex-shrink-0 text-primary hover:text-primary/80 transition-colors"
-                                  className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-primary hover:text-primary/80 transition-colors"
-                                  disabled={status.isLoading}
-                                >
-                                  {status.isLoading ? (
-                                    <Loader className="h-5 w-5 animate-spin text-primary" />
-                                  ) : (
-                                    <CheckCircle className="h-5 w-5" />
-                                  )}
-                                </button>
+                              <li
+                                key={`completed-${taskIndex}`}
+                                className={`relative pl-8 !ml-0 ${
+                                  hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
+                                }`}
+                                onClick={() => hubspotSelectMode && handleSelectContent(task)}
+                              >
+                                {!hubspotSelectMode && (
+                                  <button
+                                    onClick={() => handleTaskStatusChange(assignee.participant, task, false)}
+                                    className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-primary hover:text-primary/80 transition-colors"
+                                    disabled={status.isLoading}
+                                  >
+                                    {status.isLoading ? (
+                                      <Loader className="h-5 w-5 animate-spin text-primary" />
+                                    ) : (
+                                      <CheckCircle className="h-5 w-5" />
+                                    )}
+                                  </button>
+                                )}
                                 <span className="text-sm line-through text-gray-400">{task}</span>
                               </li>
                             )
@@ -916,6 +1259,40 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
           meetingId={details.meeting?.meetingUniqueId}
         />
       </div>
+
+      {/* Contact Selection Modal */}
+      {showContactSelectionModal && selectedContent && (
+        <ContactSelectionModal
+          content={selectedContent}
+          onClose={() => {
+            setShowContactSelectionModal(false)
+            setSelectedContent(null)
+            if (hubspotSelectMode) {
+              // Keep select mode active after closing modal
+            }
+          }}
+          contacts={hubspotContacts}
+          isLoading={isLoadingContacts}
+          onSubmit={handleSubmitNote}
+        />
+      )}
+
+      {/* HubSpot Contact Popup */}
+      {showHubspotContactPopup && (
+        <HubspotContactPopup
+          onClose={() => {
+            setShowHubspotContactPopup(false)
+            setShowHubspotButton(true) // Show button again when popup is closed
+          }}
+          onSuccess={() => {
+            setShowHubspotContactPopup(false)
+            setShowHubspotButton(true) // Show button again when contact is created
+            showToast("Contact created successfully!", "success")
+          }}
+          dealData={details.dealSummary}
+        />
+      )}
+
       <style jsx global>{`
        .scrollbar-hide::-webkit-scrollbar {
          display: none;
