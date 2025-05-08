@@ -2,7 +2,7 @@ import { getToken } from "@/services/authService"
 import { APIURL } from "@/lib/utils"
 
 // Hubspot OAuth configuration
-const HUBSPOT_CLIENT_ID = process.env.NEXT_PUBLIC_HUBSPOT_CLIENT_ID
+const HUBSPOT_CLIENT_ID = "a2a70091-d3fc-45dc-a0b6-ea5b559d0eba"
 const REDIRECT_URI = typeof window !== "undefined" ? `${window.location.origin}/integrations/hubspot/callback` : ""
 
 // Define the scopes needed for the integration
@@ -223,6 +223,51 @@ export async function createHubspotNote(noteData: {
     return data
   } catch (error) {
     console.error("Error creating HubSpot note:", error)
+    throw error
+  }
+}
+
+/**
+ * Create a deal in HubSpot
+ */
+export async function createHubspotDeal(dealData: {
+  dealName: string
+  pipeline: string
+  dealStage: string
+  amount?: number
+  description?: string
+  closeDate?: string
+  dealType?: string
+  contactIds: string[]
+}): Promise<any> {
+  try {
+    const token = getToken()
+
+    if (!token) {
+      throw new Error("User not authenticated")
+    }
+
+    console.log("Creating deal with data:", dealData)
+
+    const response = await fetch(`${APIURL}/api/v1/hubspot/deal`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(dealData),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData?.message || "Failed to create deal in HubSpot")
+    }
+
+    const data = await response.json()
+    console.log("Create deal response:", data)
+    return data
+  } catch (error) {
+    console.error("Error creating HubSpot deal:", error)
     throw error
   }
 }

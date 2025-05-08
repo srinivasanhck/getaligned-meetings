@@ -207,3 +207,6 @@ export const fetchMeetingDetails = async (meetingId: string): Promise<MeetingDet
     throw error
   }
 }
+
+
+export default api

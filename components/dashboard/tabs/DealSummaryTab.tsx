@@ -3,11 +3,25 @@
 import type React from "react"
 import { useEffect } from "react"
 import { useState, useRef } from "react"
-import { Edit, Save, X, Download,Bold, Italic, Underline, List, ListOrdered, Heading1,Heading2,
-  Link, MessageSquarePlus, User } from "lucide-react"
+import {
+  Edit,
+  Save,
+  X,
+  Download,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  ListOrdered,
+  Heading1,
+  Heading2,
+  Link,
+  MessageSquarePlus,
+  User,
+  AlertCircle,
+  Loader2,
+} from "lucide-react"
 import type { MeetingDetails } from "@/types/meetingDetails"
-import html2canvas from "html2canvas"
-import jsPDF from "jspdf"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 
@@ -19,6 +33,8 @@ import { getToken } from "@/services/authService"
 import { APIURL } from "@/lib/utils"
 import axios from "axios"
 import { HubspotIcon } from "@/components/icons/HubspotIcon"
+// Add this import at the top with the other imports
+import HubspotDealPopup from "@/components/hubspot/HubspotDealPopup"
 
 // Contact Selection Modal Component
 interface ContactSelectionModalProps {
@@ -30,7 +46,12 @@ interface ContactSelectionModalProps {
 }
 
 const ContactSelectionModal: React.FC<ContactSelectionModalProps> = ({
-  content, onClose, contacts, isLoading, onSubmit }) => {
+  content,
+  onClose,
+  contacts,
+  isLoading,
+  onSubmit,
+}) => {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
   const [note, setNote] = useState(content)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -620,6 +641,50 @@ const cleanupHTMLContent = (html: string): string => {
   return tempDiv.innerHTML
 }
 
+// Function to extract objections from HTML content
+const extractObjections = (html: string): string[] => {
+  if (!html) return []
+
+  // Create a temporary DOM element to parse the HTML
+  const tempDiv = document.createElement("div")
+  tempDiv.innerHTML = html
+
+  const extractedObjections: string[] = []
+
+  // Find all h3 elements
+  const h3Elements = tempDiv.querySelectorAll("h3")
+
+  // Check each h3 element and its content
+  h3Elements.forEach((h3) => {
+    const text = h3.textContent?.toLowerCase() || ""
+    // Check if the heading contains "objection" or related keywords
+    if (text.includes("objection") || text.includes("concern") || text.includes("pushback")) {
+      // Get the content following this h3 until the next h3
+      let content = ""
+      let currentNode = h3.nextSibling
+
+      while (currentNode && currentNode.nodeName !== "H3") {
+        if (currentNode.nodeType === Node.ELEMENT_NODE) {
+          content += (currentNode as HTMLElement).outerHTML
+        } else if (currentNode.nodeType === Node.TEXT_NODE) {
+          const textContent = currentNode.textContent?.trim()
+          if (textContent) content += `<p>${textContent}</p>`
+        }
+        currentNode = currentNode.nextSibling
+      }
+
+      // If there's content, add it to the objections with the heading
+      if (content) {
+        extractedObjections.push(
+          `<div class="objection-item"><h4 class="text-red-600 font-medium">${h3.textContent}</h4>${content}</div>`,
+        )
+      }
+    }
+  })
+
+  return extractedObjections
+}
+
 const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSummaryTabProps) => {
   const { dealSummary } = details
   console.log("details", details)
@@ -636,6 +701,9 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
   const [leftSideHTML, setLeftSideHTML] = useState<string>("")
   const [rightSideHTMLMap, setRightSideHTMLMap] = useState<Record<string, string>>({})
 
+  // Add loading state to prevent flicker
+  const [isContentLoading, setIsContentLoading] = useState<boolean>(true)
+
   // State to track if we're in edit mode\
   const [isEditMode, setIsEditMode] = useState(false)
 
@@ -647,6 +715,7 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
   const rightContentRef = useRef<HTMLDivElement>(null)
   const leftEditableRef = useRef<HTMLDivElement>(null)
   const rightEditableRef = useRef<HTMLDivElement>(null)
+  const pdfContentRef = useRef<HTMLDivElement>(null)
 
   const [rightSideKeys, setRightSideKeys] = useState<string[]>([])
 
@@ -662,10 +731,21 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
 
   // Add state for menu visibility
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  // Add this state variable with the other state variables (around line 100)
+  const [showDealPopup, setShowDealPopup] = useState(false)
+
+  const [objections, setObjections] = useState<string[]>([])
+  const [showObjectionsPanel, setShowObjectionsPanel] = useState(true)
+
+  // State for PDF generation
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [pdfPreparationProgress, setPdfPreparationProgress] = useState(0)
 
   // Initialize content when dealSummary changes
   useEffect(() => {
     if (dealSummary) {
+      setIsContentLoading(true)
+
       // Process left side content
       if (dealSummary["left-side"]) {
         // Check if the left side has a content property (post-editing format)
@@ -705,6 +785,13 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
           setActiveRightTab(keys[0])
         }
       }
+
+      // Set loading to false after a short delay to ensure content is rendered
+      setTimeout(() => {
+        setIsContentLoading(false)
+      }, 100)
+    } else {
+      setIsContentLoading(false)
     }
   }, [dealSummary, activeRightTab])
 
@@ -1020,34 +1107,84 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
     rightEditableRef.current.innerHTML = doc.body.innerHTML
   }
 
-  // Generate and download PDF
+  // Generate and download PDF - completely new approach using jspdf and html2canvas
   const handleDownloadPDF = async () => {
     if (!leftContentRef.current) return
 
     try {
-      // Create a temporary div to clone the content for better PDF rendering
-      const contentDiv = document.createElement("div")
-      contentDiv.innerHTML = leftContentRef.current.innerHTML
-      contentDiv.style.padding = "20px"
-      contentDiv.style.position = "absolute"
-      contentDiv.style.top = "-9999px"
-      contentDiv.style.left = "-9999px"
-      contentDiv.style.width = "800px" // Fixed width for better PDF layout
-      document.body.appendChild(contentDiv)
+      setIsGeneratingPDF(true)
+      setPdfPreparationProgress(10)
+      showToast("Preparing PDF...", "info")
 
-      // Use html2canvas to capture the content
-      const canvas = await html2canvas(contentDiv, {
+      // Import libraries dynamically
+      const jsPDF = (await import("jspdf")).default
+      const html2canvas = (await import("html2canvas")).default
+
+      setPdfPreparationProgress(30)
+
+      // Create a container for the PDF content
+      const pdfContainer = document.createElement("div")
+      pdfContainer.style.position = "absolute"
+      pdfContainer.style.left = "-9999px"
+      pdfContainer.style.width = "800px" // Fixed width for PDF
+      pdfContainer.style.backgroundColor = "white"
+      pdfContainer.style.padding = "40px"
+      pdfContainer.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+      document.body.appendChild(pdfContainer)
+
+      // Clone the content
+      const contentClone = leftContentRef.current.cloneNode(true) as HTMLElement
+
+      // Add PDF-specific styling
+      const styleElement = document.createElement("style")
+      styleElement.textContent = `
+      h1, h2, h3, h4, h5, h6 { 
+        margin-top: 16px;
+        margin-bottom: 8px;
+        font-weight: 600;
+        page-break-after: avoid;
+      }
+      p { 
+        margin-bottom: 8px;
+        line-height: 1.5;
+      }
+      ul, ol { 
+        margin-bottom: 16px;
+        padding-left: 20px;
+      }
+      li { 
+        margin-bottom: 8px;
+        padding-left: 8px;
+        position: relative;
+      }
+      ul li {
+        list-style-type: disc;
+        margin-left: 12px;
+      }
+      ul li::before {
+        content: "";
+        display: none;
+      }
+    `
+      pdfContainer.appendChild(styleElement)
+      pdfContainer.appendChild(contentClone)
+
+      setPdfPreparationProgress(50)
+
+      // Wait for content to render
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      // Capture the content as canvas
+      const canvas = await html2canvas(pdfContainer, {
         scale: 2, // Higher scale for better quality
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
       })
 
-      // Remove the temporary div
-      document.body.removeChild(contentDiv)
+      setPdfPreparationProgress(70)
 
       // Create PDF
-      const imgData = canvas.toDataURL("image/png")
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -1056,54 +1193,55 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
 
       // Calculate dimensions
       const imgWidth = 210 // A4 width in mm
+      const pageHeight = 297 // A4 height in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-      // Add image to PDF
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight)
+      // Calculate how many pages we need
+      const pageCount = Math.ceil(imgHeight / pageHeight)
 
-      // If content is longer than one page, add more pages
-      let heightLeft = imgHeight
-      let position = 0
+      setPdfPreparationProgress(80)
 
-      while (heightLeft > 297) {
-        // A4 height in mm
-        position = heightLeft - 297
-        pdf.addPage()
-        pdf.addImage(imgData, "PNG", 0, -position, imgWidth, imgHeight)
-        heightLeft -= 297
+      // For each page, add the appropriate slice of the image
+      for (let i = 0; i < pageCount; i++) {
+        if (i > 0) {
+          pdf.addPage()
+        }
+
+        // Calculate the position to start from for this page
+        const sourceY = i * pageHeight
+
+        // Calculate the height to use for this page (might be less for the last page)
+        const sliceHeight = Math.min(pageHeight, imgHeight - sourceY)
+
+        // Add the image slice for this page
+
+        pdf.addImage(  canvas.toDataURL("image/jpeg", 0.95),"JPEG",0,
+          i === 0 ? 0 : -10, // Add margin at top of pages after the first
+          imgWidth,
+          imgHeight
+        )
       }
+
+      setPdfPreparationProgress(90)
+
+      // Clean up
+      document.body.removeChild(pdfContainer)
 
       // Download the PDF
       pdf.save(`deal_summary_${new Date().toISOString().slice(0, 10)}.pdf`)
+
+      // Show success message
+      showToast("PDF downloaded successfully", "success")
+      setPdfPreparationProgress(100)
     } catch (error) {
       console.error("Error generating PDF:", error)
-      alert("Failed to generate PDF. Please try again.")
-    }
-  }
-
-  // Add a function to handle note submission
-  const handleSubmitNote = async (contactId: string, noteContent: string) => {
-    try {
-      const token = getToken()
-      await axios.post(
-        `${APIURL}/api/v1/hubspot/create-note`,
-        {
-          contactObjectId: contactId,
-          noteBody: noteContent,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      )
-
-      showToast("Note added successfully!", "success")
-    } catch (error) {
-      console.error("Error adding note:", error)
-      showToast("Failed to add note", "error")
-      throw error
+      showToast("Failed to generate PDF. Please try again.", "error")
+    } finally {
+      // Ensure minimum loading time for better UX
+      setTimeout(() => {
+        setIsGeneratingPDF(false)
+        setPdfPreparationProgress(0)
+      }, 500)
     }
   }
 
@@ -1121,16 +1259,16 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
 
   // Add this useEffect to close the menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (MouseEvent: MouseEvent) => {
       // Don't close the menu if we're clicking inside the menu container
       const menuContainer = document.getElementById("hubspot-menu-container")
-      if (menuContainer && menuContainer.contains(event.target as Node)) {
+      if (menuContainer && menuContainer.contains(MouseEvent.target as Node)) {
         return
       }
 
       // Don't close the menu if we're clicking the main button (that's handled separately)
       const mainButton = document.getElementById("hubspot-main-button")
-      if (mainButton && mainButton.contains(event.target as Node)) {
+      if (mainButton && mainButton.contains(MouseEvent.target as Node)) {
         return
       }
 
@@ -1149,8 +1287,154 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
     }
   }, [isMenuOpen])
 
+  // Extract objections from the signal tab content
+  useEffect(() => {
+    if (rightSideHTMLMap && rightSideHTMLMap["signal"]) {
+      const extractedObjections = extractObjections(rightSideHTMLMap["signal"])
+      setObjections(extractedObjections)
+    }
+  }, [rightSideHTMLMap])
+  console.log("objections", objections)
+
+  const validObjections = objections.filter((objection) => {
+    const match = objection.match(/<p[^>]*>(.*?)<\/p>/)
+    const textContent = match?.[1]?.trim().toLowerCase()
+    return textContent && textContent !== "none"
+  })
+
+  // Define handleSubmitNote function
+  const handleSubmitNote = async (contactId: string, note: string) => {
+    const token = await getToken()
+    if (!token) {
+      console.error("No token found")
+      showToast("Not authenticated", "error")
+      return
+    }
+
+    try {
+      const response = await axios.post(
+        `${APIURL}/api/hubspot/add-note`,
+        {
+          contactId: contactId,
+          note: note,
+          dealId: details.hubspotDealId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      )
+
+      if (response.status === 200) {
+        showToast("Note added to Hubspot successfully", "success")
+      } else {
+        showToast("Failed to add note to Hubspot", "error")
+      }
+    } catch (error: any) {
+      console.error("Error adding note to Hubspot:", error)
+      showToast("Failed to add note to Hubspot", "error")
+    }
+  }
+
+  // Add NoDataState component
+  const NoDataState = () => {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-16">
+        <div className="bg-gray-100 rounded-full p-4 mb-4">
+          <AlertCircle className="h-10 w-10 text-gray-400" />
+        </div>
+        <h3 className="text-xl font-semibold text-gray-700 mb-2">No Deal Summary Available</h3>
+        <p className="text-gray-500 text-center max-w-md mb-6">
+          There is no deal summary information available for this meeting yet.
+        </p>
+        <button
+          className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+          onClick={() => window.location.reload()}
+        >
+          Refresh
+        </button>
+      </div>
+    )
+  }
+
+  // Check if there's actual content in the dealSummary
+  const hasDealSummaryData =
+    dealSummary &&
+    dealSummary["left-side"] &&
+    ((typeof dealSummary["left-side"] === "object" &&
+      "content" in dealSummary["left-side"] &&
+      dealSummary["left-side"].content &&
+      dealSummary["left-side"].content.trim() !== "") ||
+      (typeof dealSummary["left-side"] === "object" && Object.keys(dealSummary["left-side"]).length > 0))
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      {/* Objections Panel */}
+      {objections.length > 0 && validObjections.length > 0 && showObjectionsPanel && (
+        <div className="bg-red-50 border border-red-200 rounded-lg mb-4 overflow-hidden">
+          <div className="bg-red-100 px-4 py-2 flex justify-between items-center">
+            <h3 className="font-semibold text-red-800 flex items-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-2"
+              >
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              Key Objections to Address
+            </h3>
+            <button
+              onClick={() => setShowObjectionsPanel(false)}
+              className="text-red-600 hover:text-red-800"
+              aria-label="Close objections panel"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="p-4 space-y-3 max-h-[300px] overflow-y-auto">
+            {objections.map((objection, index) => (
+              <div key={index} className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: objection }} />
+            ))}
+            <div className="pt-2 border-t border-red-100 mt-3">
+              <button
+                className="text-sm text-red-700 hover:text-red-900 font-medium flex items-center"
+                onClick={() => {
+                  if (rightSideTabs.includes("signal")) {
+                    handleTabChange("signal")
+                  }
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mr-1 h-3 w-3"
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                View all signals
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hubspot Select Mode Indicator */}
       {isHubspotSelectMode && (
         <div className="bg-primary/10 text-primary font-medium p-3 rounded-lg mb-4 flex items-center justify-between sticky top-0 z-30">
@@ -1249,146 +1533,183 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
       <div className="flex-1 flex justify-between overflow-hidden">
         {/* Left side - 60% width with independent scrolling */}
         <div className="w-[68%] h-full overflow-y-auto custom-scrollbar p-6 pr-3 pt-1 relative">
-          {!isEditMode ? (
-            <div className="absolute top-6 right-6 z-10 flex space-x-2">
-              <div className="group relative">
-                <button
-                  onClick={handleDownloadPDF}
-                  className="flex items-center justify-center p-2 bg-[#8034CB] text-white rounded-md hover:bg-[#6a2ba9] transition-colors shadow-sm"
-                  aria-label="Download PDF"
-                >
-                  <Download className="h-4 w-4" />
-                </button>
-                <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                  Download PDF
-                </div>
-              </div>
-              <div className="group relative">
-                <button
-                  onClick={toggleEditMode}
-                  className="flex items-center justify-center p-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors shadow-sm"
-                  aria-label="Edit Deal Summary"
-                >
-                  <Edit className="h-4 w-4" />
-                </button>
-                <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                  Edit Deal Summary
-                </div>
-              </div>
-
-              {/* Hubspot Button */}
-              <div className="group relative">
-                <button
-                  id="hubspot-main-button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (!hubspotConnected) {
-                      router.push("/integrations")
-                    } else {
-                      setIsMenuOpen(!isMenuOpen)
-                    }
-                  }}
-                  className={`flex items-center justify-center transition-all 
-                    ${
-                    isHubspotSelectMode
-                      ? ""
-                      // ? "bg-primary text-white"
-                      : 
-                      ""
-                      // "bg-white text-primary border border-primary/20 hover:bg-gray-50"
-                  } 
-                  ${isMenuOpen ? "ring-2 ring-primary/20" : ""}`}
-                  title={hubspotConnected ? "HubSpot Options" : "Connect HubSpot"}
-                >
-                  <HubspotIcon className="h-8 w-8" />
-                  {/* <HubspotIcon size={42} className="h-10 w-10" /> */}
-                </button>
-
-                {/* Menu items - Absolutely positioned below the button */}
-                {isMenuOpen && (
-                  <div
-                    id="hubspot-menu-container"
-                    className="absolute top-full right-0 mt-3 flex flex-col gap-2 z-50"
-                    onClick={(e) => e.stopPropagation()} // Prevent clicks from closing the menu
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setShowHubspotPopup(true)
-                        setIsMenuOpen(false)
-                      }}
-                      className="flex items-center bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-primary/90 transition-colors whitespace-nowrap active:scale-95"
-                    >
-                      <User className="h-4 w-4 mr-2" />
-                      <span className="text-sm font-medium">Create Contact</span>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleHubspotSelectMode()
-                        setIsMenuOpen(false)
-                      }}
-                      className="flex items-center bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-primary/90 transition-colors whitespace-nowrap active:scale-95"
-                    >
-                      <MessageSquarePlus className="h-4 w-4 mr-2" />
-                      <span className="text-sm font-medium">Add Notes to Contact</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Tooltip for non-connected state - only shows on hover */}
-                {!hubspotConnected && !isCheckingConnection && (
-                  <div className="absolute top-full right-0 mt-2 bg-gray-800 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    Connect HubSpot
-                  </div>
-                )}
-
-                {/* Loading indicator */}
-                {isCheckingConnection && (
-                  <div className="absolute top-0 right-0 -mt-1 -mr-1 h-3 w-3">
-                    <div className="animate-ping absolute h-full w-full rounded-full bg-primary opacity-75"></div>
-                    <div className="relative rounded-full h-3 w-3 bg-primary"></div>
-                  </div>
-                )}
-              </div>
+          {isContentLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          ) : !hasDealSummaryData ? (
+            <NoDataState />
           ) : (
-            <div className="absolute top-6 right-6 z-10 flex space-x-2">
-              <button
-                onClick={toggleEditMode}
-                className="flex items-center justify-center p-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm"
-                title="Cancel"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <button
-                onClick={saveChanges}
-                className="flex items-center justify-center p-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors shadow-sm"
-                title="Save Changes"
-              >
-                <Save className="h-4 w-4" />
-              </button>
-            </div>
-          )}
+            <>
+              {!isEditMode ? (
+                <div className="absolute top-6 right-6 z-10 flex space-x-2">
+                  <div className="group relative">
+                    <button
+                      onClick={handleDownloadPDF}
+                      disabled={isGeneratingPDF}
+                      className={`flex items-center justify-center p-2 ${
+                        isGeneratingPDF ? "bg-[#a67dd9]" : "bg-[#8034CB] hover:bg-[#6a2ba9]"
+                      } text-white rounded-md transition-colors shadow-sm`}
+                      aria-label={isGeneratingPDF ? "Generating PDF..." : "Download PDF"}
+                    >
+                      {isGeneratingPDF ? (
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                    </button>
+                    <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                      {isGeneratingPDF ? "Generating PDF..." : "Download PDF"}
+                    </div>
+                  </div>
+                  <div className="group relative">
+                    <button
+                      onClick={toggleEditMode}
+                      className="flex items-center justify-center p-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors shadow-sm"
+                      aria-label="Edit Deal Summary"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                      Edit Deal Summary
+                    </div>
+                  </div>
 
-          {/* View mode content */}
-          {!isEditMode && (
-            <div
-              ref={leftContentRef}
-              className={`prose prose-sm max-w-none ${isHubspotSelectMode ? "cursor-pointer" : ""}`}
-              dangerouslySetInnerHTML={{ __html: leftSideHTML }}
-              onClick={isHubspotSelectMode ? handleContentSelect : undefined}
-            />
-          )}
+                  {/* Hubspot Button */}
+                  <div className="group relative">
+                  <button
+  id="hubspot-main-button"
+  onClick={(e) => {
+    e.stopPropagation()
+    if (!hubspotConnected) {
+      router.push("/integrations")
+    } else {
+      setIsMenuOpen(!isMenuOpen)
+    }
+  }}
+  className={`flex items-center justify-center transition-all 
+    ${isHubspotSelectMode ? "" : ""} 
+    ${isMenuOpen ? "ring-2 ring-primary/20" : ""} 
+    rounded-full`} // ✅ Add this line
+  title={hubspotConnected ? "HubSpot Options" : "Connect HubSpot"}
+>
+  <HubspotIcon className="h-8 w-8" />
+</button>
 
-          {/* Edit mode content */}
-          {isEditMode && (
-            <div
-              ref={leftEditableRef}
-              contentEditable
-              className="prose prose-sm max-w-none min-h-[500px] focus:outline-none"
-              dangerouslySetInnerHTML={{ __html: leftSideHTML }}
-            />
+
+                    {/* Menu items - Absolutely positioned below the button */}
+                    {isMenuOpen && (
+                      <div
+                        id="hubspot-menu-container"
+                        className="absolute top-full right-0 mt-3 flex flex-col gap-2 z-50"
+                        onClick={(e) => e.stopPropagation()} // Prevent clicks from closing the menu
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowHubspotPopup(true)
+                            setIsMenuOpen(false)
+                          }}
+                          className="flex items-center bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-primary/90 transition-colors whitespace-nowrap active:scale-95"
+                        >
+                          <User className="h-4 w-4 mr-2" />
+                          <span className="text-sm font-medium">Create Contact</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowDealPopup(true)
+                            setIsMenuOpen(false)
+                          }}
+                          className="flex items-center bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-primary/90 transition-colors whitespace-nowrap active:scale-95"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4 mr-2"
+                          >
+                            <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path>
+                            <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path>
+                            <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
+                          </svg>
+                          <span className="text-sm font-medium">Create Deal</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleHubspotSelectMode()
+                            setIsMenuOpen(false)
+                          }}
+                          className="flex items-center bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-primary/90 transition-colors whitespace-nowrap active:scale-95"
+                        >
+                          <MessageSquarePlus className="h-4 w-4 mr-2" />
+                          <span className="text-sm font-medium">Add Notes to Contact</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Tooltip for non-connected state - only shows on hover */}
+                    {!hubspotConnected && !isCheckingConnection && (
+                      <div className="absolute top-full right-0 mt-2 bg-gray-800 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        Connect HubSpot
+                      </div>
+                    )}
+
+                    {/* Loading indicator */}
+                    {isCheckingConnection && (
+                      <div className="absolute top-0 right-0 -mt-1 -mr-1 h-3 w-3">
+                        <div className="animate-ping absolute h-full w-full rounded-full bg-primary opacity-75"></div>
+                        <div className="relative rounded-full h-3 w-3 bg-primary"></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="absolute top-6 right-6 z-10 flex space-x-2">
+                  <button
+                    onClick={toggleEditMode}
+                    className="flex items-center justify-center p-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm"
+                    title="Cancel"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={saveChanges}
+                    className="flex items-center justify-center p-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors shadow-sm"
+                    title="Save Changes"
+                  >
+                    <Save className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* View mode content */}
+              {!isEditMode && (
+                <div
+                  ref={leftContentRef}
+                  className={`prose prose-sm max-w-none ${isHubspotSelectMode ? "cursor-pointer" : ""}`}
+                  dangerouslySetInnerHTML={{ __html: leftSideHTML }}
+                  onClick={isHubspotSelectMode ? handleContentSelect : undefined}
+                />
+              )}
+
+              {/* Edit mode content */}
+              {isEditMode && (
+                <div
+                  ref={leftEditableRef}
+                  contentEditable
+                  className="prose prose-sm max-w-none min-h-[500px] focus:outline-none"
+                  dangerouslySetInnerHTML={{ __html: leftSideHTML }}
+                />
+              )}
+            </>
           )}
         </div>
 
@@ -1451,14 +1772,40 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
 
               {/* Empty state */}
               {(!activeRightTab || !rightSideHTMLMap[activeRightTab]) && (
-                <div className="text-center py-12 text-gray-500">
-                  <p>No content available for this tab</p>
+                <div className="flex flex-col items-center justify-center h-full py-8 px-4">
+                  <div className="bg-gray-100 rounded-full p-3 mb-3">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-6 w-6 text-gray-400"
+                    >
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <path d="M12 18v-6" />
+                      <path d="M8 18v-1" />
+                      <path d="M16 18v-3" />
+                    </svg>
+                  </div>
+                  <h4 className="text-base font-medium text-gray-700 mb-1">No Content Available</h4>
+                  <p className="text-sm text-gray-500 text-center">
+                    There is no information available for this section yet.
+                  </p>
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Hidden div for PDF content preparation */}
+      <div ref={pdfContentRef} className="hidden"></div>
 
       {/* Hubspot Contact Popup */}
       {showHubspotPopup && hubspotConnected && (
@@ -1489,12 +1836,50 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
           onSubmit={handleSubmitNote}
         />
       )}
+      {/* Deal Popup */}
+      {showDealPopup && hubspotConnected && (
+        <HubspotDealPopup
+          onClose={() => {
+            setShowDealPopup(false)
+          }}
+          onSuccess={() => {
+            setShowDealPopup(false)
+            parentShowToast
+              ? parentShowToast("Deal created in HubSpot successfully", "success")
+              : showToast("Deal created in HubSpot successfully", "success")
+          }}
+          contacts={hubspotContacts}
+          isLoadingContacts={isLoadingContacts}
+          dealData={dealSummary?.["right-side"]?.dealData || null}
+        />
+      )}
+
+      {/* PDF Generation Progress Indicator */}
+      {isGeneratingPDF && pdfPreparationProgress > 0 && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Generating PDF</h3>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+              <div
+                className="bg-primary h-2.5 rounded-full transition-all duration-300 ease-in-out"
+                style={{ width: `${pdfPreparationProgress}%` }}
+              ></div>
+            </div>
+            <p className="text-sm text-gray-600">
+              {pdfPreparationProgress < 40 && "Preparing content..."}
+              {pdfPreparationProgress >= 40 && pdfPreparationProgress < 70 && "Rendering document..."}
+              {pdfPreparationProgress >= 70 && pdfPreparationProgress < 90 && "Creating PDF..."}
+              {pdfPreparationProgress >= 90 && "Finalizing..."}
+            </p>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         ${
           isHubspotSelectMode
             ? `
-             /* Apply hover styles to both left and right side content */
+          /* Apply hover styles to both left and right side content */
           .prose p:hover, 
           .prose li:hover,
           .prose h1:hover,
@@ -1502,12 +1887,12 @@ const DealSummaryTab = ({ details, onSave, showToast: parentShowToast }: DealSum
           .prose h3:hover,
           .prose h4:hover,
           .deal-summary-content p:hover, 
-          .deal-summary-content li:hover,
+          .prose li:hover,
           .deal-summary-content h1:hover,
           .deal-summary-content h2:hover,
           .deal-summary-content h3:hover,
           .deal-summary-content h4:hover {
-            background-color: #E5DCF3;
+            background-color: rgba(79, 70, 229, 0.1);
             border-radius: 4px;
             transition: background-color 0.2s;
           }

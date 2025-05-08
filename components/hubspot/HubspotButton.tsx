@@ -92,7 +92,7 @@ export default function HubspotButton({
           }`}
           title={isConnected ? "HubSpot Options" : "Connect HubSpot"}
         >
-          <HubspotIcon size={42} className="h-10 w-10" />
+          <HubspotIcon size={42} className="h-8 w-8" />
         </button>
 
         {/* Tooltip for non-connected state - only shows on hover */}

@@ -947,6 +947,27 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
     checkScrollability()
   }
 
+  // No data state component
+  const NoDataState = () => {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-16">
+        <div className="bg-gray-100 rounded-full p-4 mb-4">
+          <AlertCircle className="h-10 w-10 text-gray-400" />
+        </div>
+        <h3 className="text-xl font-semibold text-gray-700 mb-2">No meeting details available</h3>
+        <p className="text-gray-500 text-center max-w-md mb-6">
+          There are no keywords, summary points, or action items for this meeting yet.
+        </p>
+        <button
+          className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+          onClick={() => window.location.reload()}
+        >
+          Refresh
+        </button>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="h-full flex justify-between">
@@ -957,19 +978,20 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
           {/* Header section with title and HubSpot button */}
           <div className="flex justify-between items-center mb-4">
             {/* HubSpot Button - Only show when not in select mode or contact popup */}
-            {showHubspotButton && (
-              <div className="z-30">
-                <HubspotButton
-                  isConnected={isHubspotEnabled}
-                  onCreateContact={() => {
-                    setShowHubspotContactPopup(true)
-                    setShowHubspotButton(false)
-                  }}
-                  onToggleSelectMode={toggleHubspotSelectMode}
-                  isSelectModeActive={hubspotSelectMode}
-                />
-              </div>
-            )}
+            {showHubspotButton &&
+              (keywords?.length > 0 || listSummary?.length > 0 || filteredTasksAssigned?.length > 0) && (
+                <div className="z-30">
+                  <HubspotButton
+                    isConnected={isHubspotEnabled}
+                    onCreateContact={() => {
+                      setShowHubspotContactPopup(true)
+                      setShowHubspotButton(false)
+                    }}
+                    onToggleSelectMode={toggleHubspotSelectMode}
+                    isSelectModeActive={hubspotSelectMode}
+                  />
+                </div>
+              )}
           </div>
 
           {/* Hubspot Select Mode Banner - Moved below the header */}
@@ -985,129 +1007,140 @@ const SummaryTab = ({ details }: SummaryTabProps) => {
             </div>
           )}
 
-          <div className="space-y-6">
-            {/* Keywords */}
-            {keywords && Array.isArray(keywords) && keywords.length > 0 && (
-              <div>
-                <h2 className="text-[16px] font-semibold text-black mb-3">Keywords</h2>
-                <div className="flex flex-wrap gap-2">
-                  {keywords.map((keyword, index) => (
-                    <span
-                      key={index}
-                      className={`inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary ${
-                        hubspotSelectMode ? "cursor-pointer hover:bg-primary/20" : ""
-                      }`}
-                      onClick={() => hubspotSelectMode && handleSelectContent(keyword)}
-                    >
-                      {keyword}
-                    </span>
-                  ))}
+          {/* Check if there's no data to display */}
+          {(!keywords || keywords.length === 0) &&
+          (!listSummary || listSummary.length === 0) &&
+          (!filteredTasksAssigned || filteredTasksAssigned.length === 0) ? (
+            <NoDataState />
+          ) : (
+            <div className="space-y-6">
+              {/* Keywords */}
+              {keywords && Array.isArray(keywords) && keywords.length > 0 && (
+                <div>
+                  <h2 className="text-[16px] font-semibold text-black mb-3">Keywords</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {keywords.map((keyword, index) => (
+                      <span
+                        key={index}
+                        className={`inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary ${
+                          hubspotSelectMode ? "cursor-pointer hover:bg-primary/20" : ""
+                        }`}
+                        onClick={() => hubspotSelectMode && handleSelectContent(keyword)}
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Meeting Summary */}
-            {/* List Summary */}
-            {listSummary.length > 0 && (
-              <div>
-                <h2 className="text-[16px] font-semibold text-black mb-3">Meeting Summary</h2>
-                <ul className="space-y-3 list-disc ml-4">
-                  {listSummary.map((point, index) => (
-                    <li
-                      key={index}
-                      className={`p-1 rounded-lg text-black text-sm ${
-                        hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
-                      }`}
-                      onClick={() => hubspotSelectMode && handleSelectContent(point)}
-                    >
-                      {point}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Action Items */}
-            {filteredTasksAssigned.length > 0 && (
-              <div>
-                <h2 className="text-[16px] font-semibold text-black mb-3">Action Items</h2>
-                <div className="space-y-4">
-                  {filteredTasksAssigned.map((assignee, index) => (
-                    <div key={index} className="pt-0.5 pb-2 px-4">
-                      <div className="font-semibold text-black mb-2">{assignee.participant}</div>
-                      <ul className="space-y-2">
-                        {/* Active Tasks */}
-                        {assignee.tasks &&
-                          Array.isArray(assignee.tasks) &&
-                          assignee.tasks.map((task, taskIndex) => {
-                            const taskKey = `${assignee.participant}:${task}`
-                            const status = taskStatus[taskKey] || { isCompleted: false, isLoading: false, error: null }
-
-                            return (
-                              <li
-                                key={`task-${taskIndex}`}
-                                className={`relative pl-8 !ml-0 ${
-                                  hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
-                                }`}
-                                onClick={() => hubspotSelectMode && handleSelectContent(task)}
-                              >
-                                {!hubspotSelectMode && (
-                                  <button
-                                    onClick={() => handleTaskStatusChange(assignee.participant, task, true)}
-                                    className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary transition-colors"
-                                    disabled={status.isLoading}
-                                  >
-                                    {status.isLoading ? (
-                                      <Loader className="h-5 w-5 animate-spin text-primary" />
-                                    ) : (
-                                      <Circle className="h-5 w-5" />
-                                    )}
-                                  </button>
-                                )}
-                                <span className="text-sm text-black">{task}</span>
-                              </li>
-                            )
-                          })}
-
-                        {/* Completed Tasks */}
-                        {assignee.completedTasks &&
-                          Array.isArray(assignee.completedTasks) &&
-                          assignee.completedTasks.map((task, taskIndex) => {
-                            const taskKey = `${assignee.participant}:${task}`
-                            const status = taskStatus[taskKey] || { isCompleted: true, isLoading: false, error: null }
-
-                            return (
-                              <li
-                                key={`completed-${taskIndex}`}
-                                className={`relative pl-8 !ml-0 ${
-                                  hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
-                                }`}
-                                onClick={() => hubspotSelectMode && handleSelectContent(task)}
-                              >
-                                {!hubspotSelectMode && (
-                                  <button
-                                    onClick={() => handleTaskStatusChange(assignee.participant, task, false)}
-                                    className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-primary hover:text-primary/80 transition-colors"
-                                    disabled={status.isLoading}
-                                  >
-                                    {status.isLoading ? (
-                                      <Loader className="h-5 w-5 animate-spin text-primary" />
-                                    ) : (
-                                      <CheckCircle className="h-5 w-5" />
-                                    )}
-                                  </button>
-                                )}
-                                <span className="text-sm line-through text-gray-400">{task}</span>
-                              </li>
-                            )
-                          })}
-                      </ul>
-                    </div>
-                  ))}
+              {/* Meeting Summary */}
+              {/* List Summary */}
+              {listSummary.length > 0 && (
+                <div>
+                  <h2 className="text-[16px] font-semibold text-black mb-3">Meeting Summary</h2>
+                  <ul className="space-y-3 list-disc ml-4">
+                    {listSummary.map((point, index) => (
+                      <li
+                        key={index}
+                        className={`p-1 rounded-lg text-black text-sm ${
+                          hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
+                        }`}
+                        onClick={() => hubspotSelectMode && handleSelectContent(point)}
+                      >
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+
+              {/* Action Items */}
+              {filteredTasksAssigned.length > 0 && (
+                <div>
+                  <h2 className="text-[16px] font-semibold text-black mb-3">Action Items</h2>
+                  <div className="space-y-4">
+                    {filteredTasksAssigned.map((assignee, index) => (
+                      <div key={index} className="pt-0.5 pb-2 px-4">
+                        <div className="font-semibold text-black mb-2">{assignee.participant}</div>
+                        <ul className="space-y-2">
+                          {/* Active Tasks */}
+                          {assignee.tasks &&
+                            Array.isArray(assignee.tasks) &&
+                            assignee.tasks.map((task, taskIndex) => {
+                              const taskKey = `${assignee.participant}:${task}`
+                              const status = taskStatus[taskKey] || {
+                                isCompleted: false,
+                                isLoading: false,
+                                error: null,
+                              }
+
+                              return (
+                                <li
+                                  key={`task-${taskIndex}`}
+                                  className={`relative pl-8 !ml-0 ${
+                                    hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
+                                  }`}
+                                  onClick={() => hubspotSelectMode && handleSelectContent(task)}
+                                >
+                                  {!hubspotSelectMode && (
+                                    <button
+                                      onClick={() => handleTaskStatusChange(assignee.participant, task, true)}
+                                      className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary transition-colors"
+                                      disabled={status.isLoading}
+                                    >
+                                      {status.isLoading ? (
+                                        <Loader className="h-5 w-5 animate-spin text-primary" />
+                                      ) : (
+                                        <Circle className="h-5 w-5" />
+                                      )}
+                                    </button>
+                                  )}
+                                  <span className="text-sm text-black">{task}</span>
+                                </li>
+                              )
+                            })}
+
+                          {/* Completed Tasks */}
+                          {assignee.completedTasks &&
+                            Array.isArray(assignee.completedTasks) &&
+                            assignee.completedTasks.map((task, taskIndex) => {
+                              const taskKey = `${assignee.participant}:${task}`
+                              const status = taskStatus[taskKey] || { isCompleted: true, isLoading: false, error: null }
+
+                              return (
+                                <li
+                                  key={`completed-${taskIndex}`}
+                                  className={`relative pl-8 !ml-0 ${
+                                    hubspotSelectMode ? "cursor-pointer hover:bg-primary/10" : ""
+                                  }`}
+                                  onClick={() => hubspotSelectMode && handleSelectContent(task)}
+                                >
+                                  {!hubspotSelectMode && (
+                                    <button
+                                      onClick={() => handleTaskStatusChange(assignee.participant, task, false)}
+                                      className="absolute left-0 top-0 mt-0.5 flex-shrink-0 text-primary hover:text-primary/80 transition-colors"
+                                      disabled={status.isLoading}
+                                    >
+                                      {status.isLoading ? (
+                                        <Loader className="h-5 w-5 animate-spin text-primary" />
+                                      ) : (
+                                        <CheckCircle className="h-5 w-5" />
+                                      )}
+                                    </button>
+                                  )}
+                                  <span className="text-sm line-through text-gray-400">{task}</span>
+                                </li>
+                              )
+                            })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right Column - 25% width with independent scrolling */}

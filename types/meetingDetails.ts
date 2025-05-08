@@ -119,6 +119,7 @@ export interface MeetingDetails {
   tasksWithStatus?: any[]
   todayPlan?: any[]
   updates?: any[]
+  hubspotDealId?:string
 }
 
 // The API returns the MeetingDetails directly, not wrapped in a response object

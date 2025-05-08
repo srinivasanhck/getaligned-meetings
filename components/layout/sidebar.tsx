@@ -3,7 +3,15 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Calendar, LogOut, PuzzleIcon as PuzzlePiece, BarChartIcon as ChartBar, ListChecks } from "lucide-react"
+import {
+  Home,
+  Calendar,
+  LogOut,
+  PuzzleIcon as PuzzlePiece,
+  BarChartIcon as ChartBar,
+  ListChecks,
+  Settings,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -62,6 +70,8 @@ const Sidebar = () => {
       setActiveItem("next-steps")
     } else if (pathname.includes("/integrations")) {
       setActiveItem("integrations")
+    } else if (pathname.includes("/settings")) {
+      setActiveItem("settings")
     }
   }, [pathname])
 
@@ -155,17 +165,38 @@ const Sidebar = () => {
       </div>
 
       {/* User Section - Explicitly at the bottom with mt-auto */}
-      <div className="mt-auto flex flex-col items-center space-y-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-sm font-medium text-primary">
-          {getUserInitials()}
+      <div className="mt-auto flex flex-col items-center space-y-4 pb-2">
+        {/* Settings Icon */}
+        <div className="group relative">
+          <Link
+            href="/settings"
+            className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-md transition-colors",
+              activeItem === "settings"
+                ? "bg-gray-100 text-primary"
+                : "text-gray-500 hover:bg-gray-50 hover:text-primary",
+            )}
+          >
+            <Settings size={20} />
+          </Link>
+          <div className="absolute left-full ml-2 hidden rounded z-[99] bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
+            Settings
+          </div>
         </div>
-        <button
-          className="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-50 hover:text-primary"
-          onClick={logout}
-          title="Logout"
-        >
-          <LogOut size={18} />
-        </button>
+
+        {/* Logout Button */}
+        <div className="group relative">
+          <button title="Logout"
+            className="flex h-10 w-10 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-50 hover:text-primary"
+            onClick={logout}
+            aria-label="Logout"
+          >
+            <LogOut size={20} />
+          </button>
+          {/* <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden rounded z-[99] bg-gray-800 px-2 py-1 text-xs text-white group-hover:block whitespace-nowrap">
+            Logout
+          </div> */}
+        </div>
       </div>
     </div>
   )
