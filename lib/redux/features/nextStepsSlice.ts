@@ -80,23 +80,6 @@ const initialState: NextStepsState = {
   completingTasks: {},
 }
 
-// Helper function to format start date to ISO string with beginning of day (00:00:00)
-const formatStartDateToISO = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}T00:00:00`
-}
-
-// Helper function to format end date to ISO string with end of day (23:59:59)
-const formatEndDateToISO = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}T23:59:59`
-}
-
-
 // Async thunk for fetching next steps
 export const fetchNextSteps = createAsyncThunk(
   "nextSteps/fetchNextSteps",

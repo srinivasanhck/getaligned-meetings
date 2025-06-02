@@ -1,0 +1,5 @@
+.ProseMirror {
+  border: none !important;        /* kill the solid black border   */
+  outline: none !important;       /* and the blue focus outline    */
+  box-shadow: none !important;    /* just in case                  */
+}

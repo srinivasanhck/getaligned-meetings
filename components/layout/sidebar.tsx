@@ -11,6 +11,7 @@ import {
   BarChartIcon as ChartBar,
   ListChecks,
   Settings,
+  Presentation,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -40,6 +41,11 @@ const sidebarItems = [
     icon: ChartBar,
     label: "Analytics",
     href: "/analytics",
+  },
+  {
+    icon: Presentation,
+    label: "Create PPT",
+    href: "/generate-ppt",
   },
 ]
 
@@ -72,6 +78,8 @@ const Sidebar = () => {
       setActiveItem("integrations")
     } else if (pathname.includes("/settings")) {
       setActiveItem("settings")
+    } else if (pathname.includes("/generate-ppt")) {
+      setActiveItem("generate-ppt")
     }
   }, [pathname])
 
@@ -161,6 +169,25 @@ const Sidebar = () => {
               Integrations
             </div>
           </div>
+
+          {/* Create PPT Icon */}
+          <div className="group relative">
+            <Link
+              href="/generate-ppt"
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-md transition-colors",
+                activeItem === "generate-ppt"
+                  ? "bg-gray-100 text-primary"
+                  : "text-gray-500 hover:bg-gray-50 hover:text-primary",
+              )}
+              onClick={() => setActiveItem("generate-ppt")}
+            >
+              <Presentation size={20} />
+            </Link>
+            <div className="absolute left-full ml-2 hidden rounded z-[99] bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
+              Create PPT
+            </div>
+          </div>
         </div>
       </div>
 
@@ -186,7 +213,8 @@ const Sidebar = () => {
 
         {/* Logout Button */}
         <div className="group relative">
-          <button title="Logout"
+          <button
+            title="Logout"
             className="flex h-10 w-10 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-50 hover:text-primary"
             onClick={logout}
             aria-label="Logout"
