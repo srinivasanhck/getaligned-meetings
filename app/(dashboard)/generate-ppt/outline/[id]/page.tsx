@@ -433,7 +433,8 @@ export default function OutlinePage() {
       console.log("Received request_id:", response.request_id)
 
       // Redirect to the full-ppt page with the request_id
-      router.push(`/generate-ppt/full-ppt/${response.request_id}`)
+      // router.push(`/generate-ppt/full-ppt/${response.request_id}`)
+      router.push(`/generate-ppt/entire-ppt/${response.request_id}`)
     } catch (error: any) {
       console.error("Error initiating slide generation:", error)
       setLocalError(error.message || "Failed to initiate slide generation")

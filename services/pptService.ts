@@ -1,5 +1,6 @@
 import { getToken } from "@/services/authService"
-const API_PPT_URL = "https://api.getaligned.work/ppt"
+// const API_PPT_URL = "https://api.getaligned.work/ppt"
+const API_PPT_URL = "http://34.93.82.234:8086"
 export interface Slide {
   slide_id: string
   content: any[]
