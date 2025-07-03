@@ -12,8 +12,6 @@ import { useAppDispatch } from "@/lib/redux/hooks"
 import { setTitle, setOutline, setIsGeneratingOutline } from "@/lib/redux/features/pptSlice"
 import { useRouter } from "next/navigation"
 import { getToken } from "@/services/authService"
-import { APIURL } from "@/lib/utils"
-import { API_BASE_URL } from "@/lib/api"
 
 export default function GeneratePPTPage() {
   const dispatch = useAppDispatch()
@@ -56,7 +54,7 @@ export default function GeneratePPTPage() {
         const formData = new FormData()
         formData.append("file", file, file.name)
 
-        const response = await fetch(`${API_BASE_URL}/api/v1/files/upload`, {
+        const response = await fetch("https://api.getaligned.work/ppt/api/v1/files/upload", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -115,20 +113,20 @@ export default function GeneratePPTPage() {
       }
 
       const requestBody: any = {
+        inputType: sourceType === "chat" ? "PROMPT" : "MEETINGS",
+        useSearch: false,
         pages: settings.pages,
         tone: settings.tone,
-        audience: settings.audience,
         scenario: settings.scenario,
       }
 
       // Add content based on source type
       if (sourceType === "chat") {
-        requestBody.content = prompt
+        requestBody.userInput = prompt
       } else if (sourceType === "meetings") {
+        // For meetings, we'll need to format the userInput differently
+        requestBody.userInput = meetingPrompt.trim() || "Generate presentation from selected meetings"
         requestBody.meeting_ids = selectedMeetings
-        if (meetingPrompt.trim()) {
-          requestBody.content = meetingPrompt
-        }
         // Add file URLs if any files were uploaded
         if (fileUrls.length > 0) {
           requestBody.file_url = fileUrls
@@ -137,7 +135,7 @@ export default function GeneratePPTPage() {
 
       console.log("Sending request with body:", requestBody)
 
-      const response = await fetch(`${APIURL}/api/v1/ppt/mindmap/generate`, {
+      const response = await fetch(`https://api.getaligned.work/integration/api/generate_presentation_outline`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -155,12 +153,18 @@ export default function GeneratePPTPage() {
 
       console.log("Using outline data:", data)
 
-      setOutlineData(data)
-      dispatch(setTitle(data.title))
+      // Generate a unique ID for navigation since the response doesn't have one
+      const outlineId = `outline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      // Extract title from first slide or use a default
+      const title = data.outline?.[0]?.slideTitle || "Generated Presentation"
+
+      setOutlineData({ ...data, id: outlineId, title })
+      dispatch(setTitle(title))
       dispatch(setOutline(data.outline))
 
       // Redirect to the outline page
-      router.push(`/generate-ppt/outline/${data.id}`)
+      router.push(`/generate-ppt/outline/${outlineId}`)
     } catch (err) {
       console.error("Error generating outline:", err)
       setError(err instanceof Error ? err.message : "Failed to generate outline")

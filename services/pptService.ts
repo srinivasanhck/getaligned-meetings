@@ -1,6 +1,5 @@
 import { getToken } from "@/services/authService"
-// const API_PPT_URL = "https://api.getaligned.work/ppt"
-const API_PPT_URL = "http://34.93.82.234:8086"
+const API_PPT_URL = "https://api.getaligned.work/ppt"
 export interface Slide {
   slide_id: string
   content: any[]
@@ -51,22 +50,33 @@ export const pptService = {
   initiateSlideGeneration: async (request: any): Promise<{ request_id: string }> => {
     try {
       const token = getToken()
-      const response = await fetch(`${API_PPT_URL}/api/v1/slides/initiate`, {
+
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in again.")
+      }
+
+      console.log("Sending request to initiate slide generation:", request)
+
+      const response = await fetch(`https://api.getaligned.work/ppt/api/v1/slides/initiate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ input: request }),
+        body: JSON.stringify(request), // Send the request object directly
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData?.message || `Error: ${response.status}`)
+        throw new Error(errorData?.message || `HTTP Error: ${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
       console.log("Received initiate response:", data)
+
+      if (!data.request_id) {
+        throw new Error("Invalid response: request_id not found")
+      }
 
       return data
     } catch (error) {
@@ -75,4 +85,3 @@ export const pptService = {
     }
   },
 }
-

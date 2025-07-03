@@ -1,10 +1,12 @@
 import { getToken } from "@/services/authService"
 
 // const API_BASE_URL = "https://api.getaligned.work/ppt"
-export const API_BASE_URL = "http://34.93.82.234:8086"
+// export const API_BASE_URL = "http://34.93.82.234:8086"
+export const API_BASE_URL = "http://34.47.133.11:8086"
 
 // const CORE_API_BASE_URL = "https://api.getaligned.work/core"
-const CORE_API_BASE_URL = "https://34.93.82.234:8080"
+// const CORE_API_BASE_URL = "https://34.93.82.234:8080"
+const CORE_API_BASE_URL = "http://34.47.133.11:8080"
 
 
   const AUTH_TOKEN = getToken();
@@ -275,3 +277,16 @@ export async function uploadMultipleFiles(files: File[]): Promise<FileUploadResp
     throw error
   }
 }
+
+
+
+
+
+
+
+// So now the basic work is done till here, i assume you now understnad what flow is  happeneing current,  but what i want you to do is understand the flow again what is happening in our current code, so basically let me make you understand clearly again , so in sidebar we have the "create ppt" btton on click of that we are moving to /generate-ppt and there we are displaying the ui for user to type the prompt or get from meetings and then , there is a button 'generate outline' which is at components/ppt/PromptInput.tsx on click of that we are hitting this api ${APIURL}/api/v1/ppt/mindmap/generate and generating the outline and moving the user to   router.push(`/generate-ppt/outline/${data.id}`)
+//  and dispalying them the outline there, and there user can edit the outline, change the card order by drag and then there is a button "generate slides" which is there in \app\(dashboard)\generate-ppt\outline\[id]\page.tsx  on click of that i am going to 
+//       const response = await pptService.initiateSlideGeneration(request), where i am hitting this api and giving the body and getting the requestId and after getting it moving the user to 
+// router.push(`/generate-ppt/presentations/${response.request_id}`).
+
+// So this is the current flow in the code what we have. But there some changes we need to make in this flow , let me tell that. So after we come to this page /generate-ppt/presentations/${response.request_id} currently we are displaying a ui which shows input and a "Generate Presentation" button again which is present in nextjs-getaligned-meet\slidecomponents\InputArea.tsx, and on click of that we are hittin this api ${API_BASE_URL}/generate_presentation_outline first and giving the body and getting the outline again and after getting the outline we are hitting the `${API_BASE_URL}/generate_slide_content` api to get the sldies  and we are getting the sldies and displaying them , but actually this outline which we are getting now is what we need to use it where we were intitaly hitting this api ${APIURL}/api/v1/ppt/mindmap/generate , now that api should not be used and this api should be used and the respose will change the body we need to give will change a bit and we need to handle this response and dispaly there. So after hitting this new outlien we need to dispaly the outline and allow hit to edit and then click on generate the requestId annd then move to the page and fetch the sldies by hitting the `${API_BASE_URL}/generate_slide_content` here by taking the requestId from params

@@ -26,21 +26,15 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers"
 import { useAppSelector, useAppDispatch } from "@/lib/redux/hooks"
-import { setOutline, setTitle, setError, setSelectedTemplate } from "@/lib/redux/features/pptSlice"
+import { setOutline, setTitle, setError, setSelectedTemplate, type OutlineItem } from "@/lib/redux/features/pptSlice"
 import { useContentEditable } from "@/hooks/useContentEditable"
 import { pptService } from "@/services/pptService"
 import { SlideViewer } from "@/components/ppt/SlideViewer"
 import { TemplateSelectionPopup } from "@/components/ppt/TemplateSelectionPopup"
 
-interface OutlinePoint {
-  id: string
-  text: string
-}
-
-interface OutlineSlide {
-  id: string
-  title: string
-  points: OutlinePoint[] // Changed from string[] to OutlinePoint[]
+// Updated interface to match new API response
+interface OutlineSlide extends OutlineItem {
+  id: string // We'll add this for internal tracking
 }
 
 // Editable component with cursor position preservation
@@ -53,6 +47,7 @@ function EditableContent({
   autoFocus = false,
   selectAllOnFocus = false,
   editorRef,
+  placeholder,
 }: {
   value: string
   onChange: (value: string) => void
@@ -62,6 +57,7 @@ function EditableContent({
   autoFocus?: boolean
   selectAllOnFocus?: boolean
   editorRef?: React.RefObject<HTMLDivElement>
+  placeholder?: string
 }) {
   const { ref, handleInput, handleBlur, handleKeyDown } = useContentEditable(value, onChange, onBlur, onKeyDown)
 
@@ -123,6 +119,10 @@ function EditableContent({
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       className={`outline-none ${className || ""}`}
+      data-placeholder={placeholder}
+      style={{
+        minHeight: "1.5rem",
+      }}
     />
   )
 }
@@ -131,29 +131,19 @@ function EditableContent({
 function SortableSlideCard({
   slide,
   index,
-  handleSlideTitleChange,
-  handleSlideTitleBlur,
-  handleSlideTitleKeyDown,
-  handlePointChange,
-  handlePointBlur,
-  handlePointKeyDown,
+  handleSlideChange,
+  handleSlideBlur,
+  handleSlideKeyDown,
   handleDeleteSlide,
-  handleAddPoint,
-  handleDeletePoint,
-  newPointIndex,
+  newSlideIndex,
 }: {
   slide: OutlineSlide
   index: number
-  handleSlideTitleChange: (slideId: string, newTitle: string) => void
-  handleSlideTitleBlur: (slideId: string) => void
-  handleSlideTitleKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, slideId: string) => void
-  handlePointChange: (slideId: string, pointId: string, newText: string) => void
-  handlePointBlur: (slideId: string, pointId: string) => void
-  handlePointKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, slideId: string, pointId: string) => void
+  handleSlideChange: (slideId: string, field: keyof OutlineItem, newValue: string) => void
+  handleSlideBlur: (slideId: string) => void
+  handleSlideKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, slideId: string) => void
   handleDeleteSlide: (slideId: string) => void
-  handleAddPoint: (slideId: string) => void
-  handleDeletePoint: (slideId: string, pointId: string) => void
-  newPointIndex: { slideId: string; pointId: string } | null
+  newSlideIndex: string | null
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: slide.id,
@@ -164,20 +154,6 @@ function SortableSlideCard({
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 1 : 0,
-  }
-
-  // Custom keydown handler for points to handle deletion of empty points
-  const handlePointKeyDownWithDelete = (e: React.KeyboardEvent<HTMLDivElement>, slideId: string, pointId: string) => {
-    // If content is empty and user presses Backspace or Delete, delete the point
-    if ((e.key === "Backspace" || e.key === "Delete") && (e.currentTarget.textContent || "").trim() === "") {
-      e.preventDefault()
-      console.log(`Empty point detected with ID ${pointId}, deleting...`)
-      handleDeletePoint(slideId, pointId)
-      return
-    }
-
-    // Otherwise, call the regular keydown handler
-    handlePointKeyDown(e, slideId, pointId)
   }
 
   return (
@@ -209,56 +185,53 @@ function SortableSlideCard({
             {index + 1}
           </div>
 
-          <EditableContent
-            value={slide.title}
-            onChange={(value) => handleSlideTitleChange(slide.id, value)}
-            onBlur={() => handleSlideTitleBlur(slide.id)}
-            onKeyDown={(e) => handleSlideTitleKeyDown(e, slide.id)}
-            className="text-lg font-medium text-gray-800 px-2 py-1 rounded-md"
-          />
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Slide Title</label>
+            <EditableContent
+              value={slide.slideTitle}
+              onChange={(value) => handleSlideChange(slide.id, "slideTitle", value)}
+              onBlur={() => handleSlideBlur(slide.id)}
+              onKeyDown={(e) => handleSlideKeyDown(e, slide.id)}
+              className="text-lg font-medium text-gray-800 px-2 py-1 rounded-md hover:bg-gray-100 focus:bg-white focus:ring-2 focus:ring-purple-500"
+              placeholder="Enter slide title..."
+              autoFocus={newSlideIndex === slide.id}
+              selectAllOnFocus={newSlideIndex === slide.id}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="px-6 py-4 pl-10 bg-white">
-        <ul className="list-disc pl-5 space-y-3">
-          {slide.points.map((point) => (
-            <li key={point.id}>
-              <EditableContent
-                value={point.text}
-                onChange={(value) => handlePointChange(slide.id, point.id, value)}
-                onBlur={() => handlePointBlur(slide.id, point.id)}
-                onKeyDown={(e) => handlePointKeyDownWithDelete(e, slide.id, point.id)}
-                className="text-gray-700 px-2 py-1 rounded-md"
-                autoFocus={
-                  newPointIndex !== null && newPointIndex.slideId === slide.id && newPointIndex.pointId === point.id
-                }
-                selectAllOnFocus={
-                  newPointIndex !== null && newPointIndex.slideId === slide.id && newPointIndex.pointId === point.id
-                }
-              />
-            </li>
-          ))}
-        </ul>
+      <div className="px-6 py-4 pl-10 bg-white space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-2">Content Topic</label>
+          <EditableContent
+            value={slide.contentTopic}
+            onChange={(value) => handleSlideChange(slide.id, "contentTopic", value)}
+            onBlur={() => handleSlideBlur(slide.id)}
+            onKeyDown={(e) => handleSlideKeyDown(e, slide.id)}
+            className="text-gray-700 px-3 py-2 rounded-md border border-gray-200 hover:border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-500 min-h-[3rem] block w-full"
+            placeholder="Describe what content should be covered in this slide..."
+          />
+        </div>
 
-        <button
-          onClick={() => handleAddPoint(slide.id)}
-          className="text-purple-600 hover:text-purple-700 text-sm flex items-center gap-1 mt-4"
-        >
-          <Plus className="h-3 w-3" /> Add point
-        </button>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-2">Visual Topic</label>
+          <EditableContent
+            value={slide.visualTopic}
+            onChange={(value) => handleSlideChange(slide.id, "visualTopic", value)}
+            onBlur={() => handleSlideBlur(slide.id)}
+            onKeyDown={(e) => handleSlideKeyDown(e, slide.id)}
+            className="text-gray-700 px-3 py-2 rounded-md border border-gray-200 hover:border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-500 min-h-[3rem] block w-full"
+            placeholder="Describe what visual elements should be included..."
+          />
+        </div>
       </div>
     </div>
   )
 }
 
 // Card component for the drag overlay
-function SlideCard({
-  slide,
-  index,
-}: {
-  slide: OutlineSlide
-  index: number
-}) {
+function SlideCard({ slide, index }: { slide: OutlineSlide; index: number }) {
   return (
     <div className="rounded-lg border border-gray-200 shadow-sm overflow-hidden relative bg-white">
       <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 pl-10">
@@ -266,18 +239,19 @@ function SlideCard({
           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-600 font-medium">
             {index + 1}
           </div>
-          <div className="text-lg font-medium text-gray-800">{slide.title}</div>
+          <div className="text-lg font-medium text-gray-800">{slide.slideTitle}</div>
         </div>
       </div>
 
-      <div className="px-6 py-4 pl-10 bg-white">
-        <ul className="list-disc pl-5 space-y-3">
-          {slide.points.map((point) => (
-            <li key={`overlay-${point.id}`}>
-              <div className="text-gray-700">{point.text}</div>
-            </li>
-          ))}
-        </ul>
+      <div className="px-6 py-4 pl-10 bg-white space-y-3">
+        <div>
+          <div className="text-xs font-medium text-gray-500 mb-1">Content Topic</div>
+          <div className="text-gray-700">{slide.contentTopic}</div>
+        </div>
+        <div>
+          <div className="text-xs font-medium text-gray-500 mb-1">Visual Topic</div>
+          <div className="text-gray-700">{slide.visualTopic}</div>
+        </div>
       </div>
     </div>
   )
@@ -301,11 +275,11 @@ export default function OutlinePage() {
   } = useAppSelector((state) => state.ppt)
 
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setLocalError] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
   const [title, setLocalTitle] = useState("")
   const [outline, setLocalOutline] = useState<OutlineSlide[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [newPointIndex, setNewPointIndex] = useState<{ slideId: string; pointId: string } | null>(null)
+  const [newSlideIndex, setNewSlideIndex] = useState<string | null>(null)
   const [isTemplatePopupOpen, setIsTemplatePopupOpen] = useState(false)
   const [showSlidesPreview, setShowSlidesPreview] = useState(false)
   const [isInitiatingSlides, setIsInitiatingSlides] = useState(false)
@@ -342,33 +316,17 @@ export default function OutlinePage() {
     }),
   )
 
-  // Convert string[] points to OutlinePoint[] for compatibility with Redux store
-  const convertToOutlinePoints = useCallback((slides: any[]): OutlineSlide[] => {
-    return slides.map((slide) => ({
-      ...slide,
-      id: slide.id.toString(),
-      points: Array.isArray(slide.points)
-        ? slide.points.map((point: string | OutlinePoint, index: number) => {
-            // If it's already an OutlinePoint object
-            if (typeof point === "object" && point.id && point.text) {
-              return point
-            }
-            // If it's a string, convert to OutlinePoint
-            return {
-              id: `${slide.id}-point-${index}-${Date.now()}`,
-              text: typeof point === "string" ? point : String(point),
-            }
-          })
-        : [],
+  // Convert OutlineItem[] to OutlineSlide[] by adding IDs
+  const convertToOutlineSlides = useCallback((items: OutlineItem[]): OutlineSlide[] => {
+    return items.map((item, index) => ({
+      ...item,
+      id: `slide-${index}-${Date.now()}`,
     }))
   }, [])
 
-  // Convert OutlinePoint[] back to string[] for Redux store
-  const convertToStringPoints = useCallback((slides: OutlineSlide[]): any[] => {
-    return slides.map((slide) => ({
-      ...slide,
-      points: slide.points.map((point) => point.text),
-    }))
+  // Convert OutlineSlide[] back to OutlineItem[] for Redux store
+  const convertToOutlineItems = useCallback((slides: OutlineSlide[]): OutlineItem[] => {
+    return slides.map(({ id, ...item }) => item)
   }, [])
 
   // Initial data load from Redux
@@ -381,7 +339,7 @@ export default function OutlinePage() {
     // If we have the data in Redux store, use it
     if (storeTitle && storeOutline && storeOutline.length > 0) {
       setLocalTitle(storeTitle)
-      setLocalOutline(convertToOutlinePoints(storeOutline))
+      setLocalOutline(convertToOutlineSlides(storeOutline))
       setIsLoading(false)
       return
     }
@@ -397,7 +355,7 @@ export default function OutlinePage() {
       setLocalError("Outline data not found. Please generate a new outline.")
       setIsLoading(false)
     }
-  }, [storeTitle, storeOutline, isGeneratingOutline, convertToOutlinePoints])
+  }, [storeTitle, storeOutline, isGeneratingOutline, convertToOutlineSlides])
 
   const handleGoBack = () => {
     router.push("/generate-ppt")
@@ -407,18 +365,20 @@ export default function OutlinePage() {
     // Save changes to Redux before generating slides
     isLocalUpdate.current = true
     dispatch(setTitle(title))
-    dispatch(setOutline(convertToStringPoints(outline)))
+    dispatch(setOutline(convertToOutlineItems(outline)))
 
     // Set initiating state
     setIsInitiatingSlides(true)
     setLocalError(null)
 
     try {
-      // Create the request object
+      // Create the request object with the correct format
       const request = {
-        title,
-        theme: selectedTemplate || "light",
-        outline: convertToStringPoints(outline),
+        input: {
+          id: Number.parseInt(id) || Date.now(), // Use the outline ID from params or generate one
+          title: title,
+          outline: convertToOutlineItems(outline), // This will be the OutlineItem[] format
+        },
       }
 
       console.log("Initiating slide generation with request:", request)
@@ -432,12 +392,11 @@ export default function OutlinePage() {
 
       console.log("Received request_id:", response.request_id)
 
-      // Redirect to the full-ppt page with the request_id
-      // router.push(`/generate-ppt/full-ppt/${response.request_id}`)
-      router.push(`/generate-ppt/entire-ppt/${response.request_id}`)
+      // Redirect to the presentations page with the request_id
+      router.push(`/generate-ppt/presentations/${response.request_id}`)
     } catch (error: any) {
       console.error("Error initiating slide generation:", error)
-      setLocalError(error.message || "Failed to initiate slide generation")
+      setLocalError(error.message || "Failed to initiate slide generation. Please try again.")
     } finally {
       setIsInitiatingSlides(false)
       isLocalUpdate.current = false
@@ -458,13 +417,13 @@ export default function OutlinePage() {
 
     // Save changes to Redux
     dispatch(setTitle(title))
-    dispatch(setOutline(convertToStringPoints(outline)))
+    dispatch(setOutline(convertToOutlineItems(outline)))
 
     // Reset flag after a short delay to allow Redux to update
     setTimeout(() => {
       isLocalUpdate.current = false
     }, 100)
-  }, [dispatch, title, outline, convertToStringPoints])
+  }, [dispatch, title, outline, convertToOutlineItems])
 
   const handleTitleChange = useCallback((newTitle: string) => {
     setLocalTitle(newTitle)
@@ -501,7 +460,7 @@ export default function OutlinePage() {
         // Schedule Redux update for next tick to avoid render phase updates
         scheduleAction(() => {
           isLocalUpdate.current = true
-          dispatch(setOutline(convertToStringPoints(newOutline)))
+          dispatch(setOutline(convertToOutlineItems(newOutline)))
           setTimeout(() => {
             isLocalUpdate.current = false
           }, 100)
@@ -514,18 +473,22 @@ export default function OutlinePage() {
     setActiveId(null)
   }
 
-  const handleSlideTitleChange = useCallback((slideId: string, newTitle: string) => {
-    setLocalOutline((prev) => prev.map((slide) => (slide.id === slideId ? { ...slide, title: newTitle } : slide)))
+  const handleSlideChange = useCallback((slideId: string, field: keyof OutlineItem, newValue: string) => {
+    setLocalOutline((prev) => prev.map((slide) => (slide.id === slideId ? { ...slide, [field]: newValue } : slide)))
   }, [])
 
-  const handleSlideTitleBlur = useCallback(
+  const handleSlideBlur = useCallback(
     (slideId: string) => {
       handleSaveOutline()
+      // Clear the new slide index after blur
+      if (newSlideIndex === slideId) {
+        setNewSlideIndex(null)
+      }
     },
-    [handleSaveOutline],
+    [handleSaveOutline, newSlideIndex],
   )
 
-  const handleSlideTitleKeyDown = useCallback(
+  const handleSlideKeyDown = useCallback(
     (e: React.KeyboardEvent, slideId: string) => {
       if (e.key === "Enter") {
         e.preventDefault()
@@ -533,97 +496,6 @@ export default function OutlinePage() {
       }
     },
     [handleSaveOutline],
-  )
-
-  const handlePointChange = useCallback((slideId: string, pointId: string, newText: string) => {
-    setLocalOutline((prev) =>
-      prev.map((slide) =>
-        slide.id === slideId
-          ? {
-              ...slide,
-              points: slide.points.map((point) => (point.id === pointId ? { ...point, text: newText } : point)),
-            }
-          : slide,
-      ),
-    )
-  }, [])
-
-  const handlePointBlur = useCallback(
-    (slideId: string, pointId: string) => {
-      handleSaveOutline()
-      // Clear the new point index after blur
-      if (newPointIndex && newPointIndex.slideId === slideId && newPointIndex.pointId === pointId) {
-        setNewPointIndex(null)
-      }
-    },
-    [handleSaveOutline, newPointIndex],
-  )
-
-  const handlePointKeyDown = useCallback(
-    (e: React.KeyboardEvent, slideId: string, pointId: string) => {
-      if (e.key === "Enter") {
-        e.preventDefault()
-        handleSaveOutline()
-      }
-    },
-    [handleSaveOutline],
-  )
-
-  const handleDeletePoint = useCallback(
-    (slideId: string, pointId: string) => {
-      console.log(`Deleting point with ID ${pointId} from slide ${slideId}`)
-
-      // Update local state first
-      setLocalOutline((prev) => {
-        // Find the slide we need to update
-        const slideIndex = prev.findIndex((s) => s.id === slideId)
-
-        if (slideIndex === -1) return prev // Slide not found
-
-        const slide = prev[slideIndex]
-
-        // Don't delete if it's the only point in the slide
-        if (slide.points.length <= 1) {
-          const updatedSlide = {
-            ...slide,
-            points: [{ id: `${slide.id}-point-0-${Date.now()}`, text: "Add your point here" }],
-          }
-
-          const updatedOutline = [...prev]
-          updatedOutline[slideIndex] = updatedSlide
-
-          // Schedule Redux update
-          scheduleAction(() => {
-            isLocalUpdate.current = true
-            dispatch(setOutline(convertToStringPoints(updatedOutline)))
-            setTimeout(() => {
-              isLocalUpdate.current = false
-            }, 100)
-          })
-
-          return updatedOutline
-        }
-
-        // Remove the specific point by ID
-        const updatedPoints = slide.points.filter((point) => point.id !== pointId)
-        const updatedSlide = { ...slide, points: updatedPoints }
-
-        const updatedOutline = [...prev]
-        updatedOutline[slideIndex] = updatedSlide
-
-        // Schedule Redux update
-        scheduleAction(() => {
-          isLocalUpdate.current = true
-          dispatch(setOutline(convertToStringPoints(updatedOutline)))
-          setTimeout(() => {
-            isLocalUpdate.current = false
-          }, 100)
-        })
-
-        return updatedOutline
-      })
-    },
-    [dispatch, scheduleAction, convertToStringPoints],
   )
 
   const handleDeleteSlide = useCallback(
@@ -635,7 +507,7 @@ export default function OutlinePage() {
         // Schedule Redux update for next tick to avoid render phase updates
         scheduleAction(() => {
           isLocalUpdate.current = true
-          dispatch(setOutline(convertToStringPoints(newOutline)))
+          dispatch(setOutline(convertToOutlineItems(newOutline)))
           setTimeout(() => {
             isLocalUpdate.current = false
           }, 100)
@@ -644,15 +516,16 @@ export default function OutlinePage() {
         return newOutline
       })
     },
-    [dispatch, scheduleAction, convertToStringPoints],
+    [dispatch, scheduleAction, convertToOutlineItems],
   )
 
   const handleAddSlide = useCallback(() => {
-    const slideId = Date.now().toString()
+    const slideId = `slide-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const newSlide: OutlineSlide = {
       id: slideId,
-      title: "New Slide",
-      points: [{ id: `${slideId}-point-0-${Date.now()}`, text: "Add your first point here" }],
+      slideTitle: "New Slide Title",
+      contentTopic: "Describe what content should be covered in this slide...",
+      visualTopic: "Describe what visual elements should be included...",
     }
 
     setLocalOutline((prev) => {
@@ -661,7 +534,7 @@ export default function OutlinePage() {
       // Schedule Redux update for next tick to avoid render phase updates
       scheduleAction(() => {
         isLocalUpdate.current = true
-        dispatch(setOutline(convertToStringPoints(newOutline)))
+        dispatch(setOutline(convertToOutlineItems(newOutline)))
         setTimeout(() => {
           isLocalUpdate.current = false
         }, 100)
@@ -669,45 +542,10 @@ export default function OutlinePage() {
 
       return newOutline
     })
-  }, [dispatch, scheduleAction, convertToStringPoints])
 
-  const handleAddPoint = useCallback(
-    (slideId: string) => {
-      setLocalOutline((prev) => {
-        const updatedOutline = prev.map((slide) => {
-          if (slide.id === slideId) {
-            const newPointId = `${slide.id}-point-${slide.points.length}-${Date.now()}`
-            const newPoint = { id: newPointId, text: "New point" }
-
-            const updatedSlide = {
-              ...slide,
-              points: [...slide.points, newPoint],
-            }
-
-            // Schedule setting the new point index for next tick
-            scheduleAction(() => {
-              setNewPointIndex({ slideId, pointId: newPointId })
-            })
-
-            return updatedSlide
-          }
-          return slide
-        })
-
-        // Schedule Redux update for next tick to avoid render phase updates
-        scheduleAction(() => {
-          isLocalUpdate.current = true
-          dispatch(setOutline(convertToStringPoints(updatedOutline)))
-          setTimeout(() => {
-            isLocalUpdate.current = false
-          }, 100)
-        })
-
-        return updatedOutline
-      })
-    },
-    [dispatch, scheduleAction, convertToStringPoints],
-  )
+    // Set the new slide for auto-focus
+    setNewSlideIndex(slideId)
+  }, [dispatch, scheduleAction, convertToOutlineItems])
 
   const handleOpenTemplatePopup = () => {
     console.log("Opening template popup")
@@ -738,7 +576,7 @@ export default function OutlinePage() {
     )
   }
 
-  if (error) {
+  if (localError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-white p-8">
         <div className="max-w-4xl mx-auto">
@@ -748,13 +586,22 @@ export default function OutlinePage() {
           </button>
 
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={handleGoBack}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-            >
-              Create New Outline
-            </button>
+            <p className="text-red-600 mb-4">{localError}</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={handleGoBack}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+              >
+                Create New Outline
+              </button>
+
+              <button
+                onClick={() => setLocalError(null)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -865,10 +712,12 @@ export default function OutlinePage() {
             onChange={handleTitleChange}
             onBlur={handleTitleBlur}
             onKeyDown={handleTitleKeyDown}
-            className="text-3xl font-bold tracking-tight text-gray-800 mb-2 px-2 py-1 rounded-md"
+            className="text-3xl font-bold tracking-tight text-gray-800 mb-2 px-2 py-1 rounded-md hover:bg-gray-100 focus:bg-white focus:ring-2 focus:ring-purple-500"
+            placeholder="Enter presentation title..."
           />
           <p className="text-gray-600">
-            Your presentation outline has {outline.length} slides. Edit it below or generate the full presentation.
+            Your presentation outline has {outline.length} slides. Edit the content below or generate the full
+            presentation.
           </p>
         </div>
 
@@ -888,16 +737,11 @@ export default function OutlinePage() {
                   key={slide.id}
                   slide={slide}
                   index={index}
-                  handleSlideTitleChange={handleSlideTitleChange}
-                  handleSlideTitleBlur={handleSlideTitleBlur}
-                  handleSlideTitleKeyDown={handleSlideTitleKeyDown}
-                  handlePointChange={handlePointChange}
-                  handlePointBlur={handlePointBlur}
-                  handlePointKeyDown={handlePointKeyDown}
+                  handleSlideChange={handleSlideChange}
+                  handleSlideBlur={handleSlideBlur}
+                  handleSlideKeyDown={handleSlideKeyDown}
                   handleDeleteSlide={handleDeleteSlide}
-                  handleAddPoint={handleAddPoint}
-                  handleDeletePoint={handleDeletePoint}
-                  newPointIndex={newPointIndex}
+                  newSlideIndex={newSlideIndex}
                 />
               ))}
             </div>
@@ -912,13 +756,15 @@ export default function OutlinePage() {
           onClick={handleAddSlide}
           className="mt-4 w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:text-purple-600 hover:border-purple-300 flex items-center justify-center gap-2 transition-colors"
         >
-          <Plus className="h-5 w-5" /> Add card
+          <Plus className="h-5 w-5" /> Add slide
         </button>
 
         <div className="mt-4 flex justify-between text-gray-500 text-sm">
-          <span>{outline.length} cards total</span>
-          <span>Type --- for card breaks</span>
-          <span>{outline.reduce((acc, slide) => acc + slide.points.length, 0)}/20000</span>
+          <span>{outline.length} slides total</span>
+          <span>Drag to reorder slides</span>
+          <span>
+            {outline.reduce((acc, slide) => acc + slide.contentTopic.length + slide.visualTopic.length, 0)}/20000
+          </span>
         </div>
 
         {/* Template selection and Generate Slides buttons at the bottom */}
