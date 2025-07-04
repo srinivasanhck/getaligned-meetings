@@ -12,13 +12,14 @@ import { useAppDispatch } from "@/lib/redux/hooks"
 import { setTitle, setOutline, setIsGeneratingOutline } from "@/lib/redux/features/pptSlice"
 import { useRouter } from "next/navigation"
 import { getToken } from "@/services/authService"
+import AllPresentationsList from "@/components/ppt/AllPresentationsList"
 
 export default function GeneratePPTPage() {
   const dispatch = useAppDispatch()
   const [prompt, setPrompt] = useState("")
   const [meetingPrompt, setMeetingPrompt] = useState("")
   const [isTyping, setIsTyping] = useState(false)
-  const [selectedOption, setSelectedOption] = useState("chat")
+  const [selectedOption, setSelectedOption] = useState("")
   const [selectedMeetings, setSelectedMeetings] = useState<string[]>([])
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -164,6 +165,7 @@ export default function GeneratePPTPage() {
       dispatch(setOutline(data.outline))
 
       // Redirect to the outline page
+      console.log("Redirecting to outline page with ID:", outlineId)
       router.push(`/generate-ppt/outline/${outlineId}`)
     } catch (err) {
       console.error("Error generating outline:", err)
@@ -287,7 +289,7 @@ export default function GeneratePPTPage() {
         </div>
 
         {/* Content Based on Selection */}
-        {selectedOption === "chat" && (
+        {selectedOption && selectedOption === "chat" && (
           <>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -338,7 +340,7 @@ export default function GeneratePPTPage() {
           </>
         )}
 
-        {selectedOption === "meetings" && (
+        {selectedOption && selectedOption === "meetings" && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -380,6 +382,8 @@ export default function GeneratePPTPage() {
             )}
           </motion.div>
         )}
+           {/* All Presentations List */}
+        <AllPresentationsList />
       </div>
     </div>
   )

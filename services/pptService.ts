@@ -57,7 +57,8 @@ export const pptService = {
 
       console.log("Sending request to initiate slide generation:", request)
 
-      const response = await fetch(`https://api.getaligned.work/ppt/api/v1/slides/initiate`, {
+      // const response = await fetch(`https://api.getaligned.work/ppt/api/v1/slides/initiate`, {
+      const response = await fetch(`https://api.getaligned.work/integration/api/v1/slides/initiate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

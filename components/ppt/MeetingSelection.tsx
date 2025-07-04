@@ -490,7 +490,7 @@ export const MeetingSelection: React.FC<MeetingSelectionProps> = ({
 
         {/* Meetings List */}
         {!isFetchingMeetings && !error && (
-          <div className="space-y-4 bg-white rounded-lg border border-gray-200 max-h-96 overflow-y-auto">
+          <div className="space-y-4 bg-white rounded-lg border border-gray-200 max-h-96 overflow-y-auto custom-scrollbar">
             <div className="p-4">
               {Object.keys(groupedMeetings).length === 0 ? (
                 <div className="text-center py-12">

@@ -7,9 +7,11 @@ import { useParams } from "next/navigation"
 import { useAppSelector } from "@/lib/redux/hooks"
 import PresentationEditor from "@/slidecomponents/PresentationEditor"
 import LoadingSpinner from "@/slidecomponents/LoadingSpinner"
-import type { Presentation, Slide, SlideElement, BlockDefinition } from "@/types"
+import UndoRedoToolbar from "@/components/ui/UndoRedoToolbar"
+import type { Presentation, Slide, SlideElement, BlockDefinition, ImageElementProps, VideoElementProps } from "@/types"
 import { presentationService } from "@/services/presentationService"
 import { DEFAULT_THEME } from "@/constants"
+import { useUndoRedo, type HistoryAction } from "@/hooks/useUndoRedo"
 
 const PresentationsPage: React.FC = () => {
   const params = useParams()
@@ -19,7 +21,7 @@ const PresentationsPage: React.FC = () => {
   const { outline, title } = useAppSelector((state) => state.ppt)
 
   // Component state
-  const [presentation, setPresentation] = useState<Presentation | null>(null)
+  const [presentation, setPresentation] = useState<Slide[] | null>(null)
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isGenerating, setIsGenerating] = useState<boolean>(false)
@@ -35,6 +37,89 @@ const PresentationsPage: React.FC = () => {
     current: number
     total: number
   }>({ current: 0, total: 0 })
+
+  // Initialize undo/redo system
+  const {
+    canUndo,
+    canRedo,
+    currentAction,
+    historySize,
+    executeAction,
+    undo,
+    redo,
+    clearHistory,
+    startGroup,
+    endGroup
+  } = useUndoRedo(presentation || [], {
+    maxHistorySize: 50,
+    groupingTimeWindow: 1500 // 1.5 seconds for better text editing grouping
+  })
+
+  // Clear history when presentation changes significantly (like loading new slides)
+  useEffect(() => {
+    if (presentation && presentation.length > 0) {
+      clearHistory()
+    }
+  }, [requestId, clearHistory]) // Only clear when the requestId changes (new presentation)
+
+  // Undo/Redo handlers
+  const handleUndo = useCallback(() => {
+    const previousState = undo()
+    if (previousState) {
+      setPresentation(previousState)
+    }
+  }, [undo])
+
+  const handleRedo = useCallback(() => {
+    const nextState = redo()
+    if (nextState) {
+      setPresentation(nextState)
+    }
+  }, [redo])
+
+  // Helper function to create action and update state
+  const createAction = useCallback((
+    type: HistoryAction['type'],
+    description: string,
+    newState: Slide[],
+    metadata?: Record<string, any>
+  ) => {
+    const action: HistoryAction = {
+      id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      description,
+      timestamp: Date.now(),
+      ...metadata
+    }
+    
+    executeAction(action, newState)
+    setPresentation(newState)
+  }, [executeAction])
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check if we're in an input field or content editable element
+      const target = event.target as HTMLElement
+      const isInputField = target.tagName === 'INPUT' || 
+                          target.tagName === 'TEXTAREA' || 
+                          target.contentEditable === 'true'
+      
+      // Only handle shortcuts if not in input fields
+      if (!isInputField && (event.ctrlKey || event.metaKey)) {
+        if (event.key === 'z' && !event.shiftKey) {
+          event.preventDefault()
+          handleUndo()
+        } else if ((event.key === 'y') || (event.key === 'z' && event.shiftKey)) {
+          event.preventDefault()
+          handleRedo()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleUndo, handleRedo])
 
   const checkExistingSlidesOrGenerate = useCallback(async () => {
     try {
@@ -202,7 +287,7 @@ const PresentationsPage: React.FC = () => {
       setGenerationProgress({ current: outline.length, total: outline.length })
       setProgressMessage("All slides generated! Saving presentation...")
 
-      // Save the complete presentation to backend
+      // Save the generated slides to backend
       await savePresentationToBackend(generatedSlides)
 
       setProgressMessage("Presentation saved successfully!")
@@ -219,45 +304,56 @@ const PresentationsPage: React.FC = () => {
     }
   }
 
-  const savePresentationToBackend = async (slides: Slide[]) => {
+  const savePresentationToBackend = async (slides: Slide[], showNotification: boolean = true) => {
     try {
       setIsSaving(true)
-      setSaveStatus({ type: null, message: "" })
+      if (showNotification) {
+        setSaveStatus({ type: null, message: "" })
+      }
 
-      const saveResponse = await presentationService.savePresentation(requestId, slides)
+      const saveResponse = await presentationService.savePresentation(requestId, slides as any)
 
       if (saveResponse.success) {
         console.log("Presentation saved successfully:", saveResponse.message)
-        setSaveStatus({
-          type: "success",
-          message: saveResponse.message || "Presentation saved successfully!",
-        })
+        
+        if (showNotification) {
+          setSaveStatus({
+            type: "success",
+            message: saveResponse.message || "Presentation saved successfully!",
+          })
 
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setSaveStatus({ type: null, message: "" })
-        }, 3000)
+          // Clear success message after 3 seconds
+          setTimeout(() => {
+            setSaveStatus({ type: null, message: "" })
+          }, 3000)
+        }
       } else {
-        throw new Error("Failed to save presentation")
+        throw new Error(saveResponse.message || "Failed to save presentation")
       }
     } catch (error: any) {
       console.error("Error saving presentation:", error)
-      setSaveStatus({
-        type: "error",
-        message: error.message || "Failed to save presentation. Please try again.",
-      })
+      
+      if (showNotification) {
+        setSaveStatus({
+          type: "error",
+          message: error.message || "Failed to save presentation. Please try again.",
+        })
 
-      // Clear error message after 5 seconds
-      setTimeout(() => {
-        setSaveStatus({ type: null, message: "" })
-      }, 5000)
+        // Clear error message after 5 seconds
+        setTimeout(() => {
+          setSaveStatus({ type: null, message: "" })
+        }, 5000)
+      }
+      
+      // Always throw the error so that PresentationEditor can catch it
+      throw error
     } finally {
       setIsSaving(false)
     }
   }
 
-  // Map API slides array to Presentation format (for existing slides)
-  const mapApiSlidesToPresentation = (apiSlides: any[]): Presentation => {
+  // Map API slides array to Slide[] format (for existing slides)
+  const mapApiSlidesToPresentation = (apiSlides: any[]): Slide[] => {
     return apiSlides.map((slide, index) => ({
       id: slide.id || `slide-${Date.now()}-${index}`,
       elements: slide.elements || [],
@@ -272,278 +368,360 @@ const PresentationsPage: React.FC = () => {
   }
 
   const handleSlideUpdate = useCallback((updatedSlide: Slide) => {
-    setPresentation((prevPresentation: Presentation | null) => {
-      if (!prevPresentation) return [updatedSlide]
-
-      const existingSlideIndex = prevPresentation.findIndex((s: any) => s.id === updatedSlide.id)
-      const newPresentation = [...prevPresentation]
-
-      if (existingSlideIndex !== -1) {
-        newPresentation[existingSlideIndex] = updatedSlide
-      } else {
-        newPresentation.push(updatedSlide)
-      }
-      return newPresentation
+    if (!presentation) return
+    
+    const newPresentation = [...presentation]
+    const existingSlideIndex = newPresentation.findIndex((s: any) => s.id === updatedSlide.id)
+    
+    if (existingSlideIndex !== -1) {
+      newPresentation[existingSlideIndex] = updatedSlide
+    } else {
+      newPresentation.push(updatedSlide)
+    }
+    
+    createAction('slide_update', `slide "${updatedSlide.titleForThumbnail || 'Untitled'}"`, newPresentation, {
+      slideId: updatedSlide.id
     })
-  }, [])
+  }, [presentation, createAction])
 
   const handleElementUpdate = useCallback((slideId: string, updatedElement: SlideElement) => {
-    setPresentation((prevPresentation: Presentation | null) => {
-      if (!prevPresentation) return null
-      return prevPresentation.map((slide: any) => {
-        if (slide.id === slideId) {
-          return {
-            ...slide,
-            elements: slide.elements.map((el: any) => (el.id === updatedElement.id ? updatedElement : el)),
-          }
+    if (!presentation) return
+    
+    const newPresentation = presentation.map((slide: any) => {
+      if (slide.id === slideId) {
+        return {
+          ...slide,
+          elements: slide.elements.map((el: any) => (el.id === updatedElement.id ? updatedElement : el)),
         }
-        return slide
-      })
+      }
+      return slide
     })
-  }, [])
+    
+    // Check if this is a text edit for better grouping
+    const isTextEdit = updatedElement.type === 'text' && 'content' in updatedElement
+    
+    if (isTextEdit) {
+      const content = (updatedElement as any).content || 'text'
+      const shortContent = content.substring(0, 30).replace(/\n/g, ' ')
+      
+      createAction('element_update', `Edit: "${shortContent}${content.length > 30 ? '...' : ''}"`, newPresentation, {
+        slideId,
+        elementId: updatedElement.id,
+        isTextEdit: true
+      })
+    } else {
+      createAction('element_update', `Update ${updatedElement.type}`, newPresentation, {
+        slideId,
+        elementId: updatedElement.id
+      })
+    }
+  }, [presentation, createAction])
 
   const handleAddElement = useCallback((slideId: string, blockDefinition: BlockDefinition) => {
-    setPresentation((prevPresentation: Presentation | null) => {
-      if (!prevPresentation) return null
-      return prevPresentation.map((slide: any) => {
-        if (slide.id === slideId) {
-          const newElementId = `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    if (!presentation) return
+    
+    const newPresentation = presentation.map((slide: any) => {
+      if (slide.id === slideId) {
+        const newElementId = `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-          // Center positioning instead of stacking
-          const centerX = 5 // 5% from left
-          const centerY = 40 // 40% from top (center of slide)
+        // Center positioning instead of stacking
+        const centerX = 5 // 5% from left
+        const centerY = 40 // 40% from top (center of slide)
 
-          const baseProps = {
-            id: newElementId,
-            x: centerX,
-            y: centerY,
-            width: 90,
-            height: 20,
-            locked: false,
-            zIndex: (slide.elements.length + 1) * 10,
-            opacity: 1,
-            ...(blockDefinition.defaultProps || {}),
-          }
-
-          let newElement: SlideElement
-
-          // Create different text elements based on block definition
-          let content = "New Text Block"
-          let fontSize = 18
-          let fontWeight = "normal"
-          let textAlign = "center"
-          let height = 20
-
-          // Customize based on block label
-          if (blockDefinition.label === "Title") {
-            content = "New Title"
-            fontSize = 48
-            fontWeight = "bold"
-            height = 25
-          } else if (blockDefinition.label === "Heading 1") {
-            content = "New Heading 1"
-            fontSize = 36
-            fontWeight = "bold"
-            height = 22
-          } else if (blockDefinition.label === "Heading 2") {
-            content = "New Heading 2"
-            fontSize = 28
-            fontWeight = "bold"
-            height = 20
-          } else if (blockDefinition.label === "Paragraph") {
-            content = "New paragraph text. Click to edit this content."
-            fontSize = 16
-            fontWeight = "normal"
-            textAlign = "left"
-            height = 25
-          } else if (blockDefinition.label === "Quote") {
-            content = '"New quote text. Click to edit this inspiring quote."'
-            fontSize = 20
-            fontWeight = "italic"
-            height = 22
-          } else if (blockDefinition.label === "Info Callout") {
-            content = "ℹ️ Important information callout. Click to edit."
-            fontSize = 16
-            fontWeight = "normal"
-            textAlign = "left"
-            height = 20
-          } else if (blockDefinition.label === "Bullet List" || blockDefinition.label === "List") {
-            content = "• First bullet point\n• Second bullet point"
-            fontSize = 16
-            fontWeight = "normal"
-            textAlign = "left"
-            height = 25
-          } else if (blockDefinition.label === "Numbered List") {
-            content = "1. First numbered item\n2. Second numbered item"
-            fontSize = 16
-            fontWeight = "normal"
-            textAlign = "left"
-            height = 25
-          }
-
-          switch (blockDefinition.type) {
-            case "text":
-              newElement = {
-                ...baseProps,
-                type: "text",
-                content,
-                fontSize,
-                fontWeight,
-                textAlign,
-                height,
-                color: slide.defaultElementTextColor || "#000000",
-                paddingTop: 4,
-                paddingRight: 4,
-                paddingBottom: 4,
-                paddingLeft: 4,
-                lineHeight: 1.4,
-              } as any
-              break
-
-            case "list":
-              newElement = {
-                ...baseProps,
-                type: "text",
-                content,
-                fontSize,
-                fontWeight,
-                textAlign,
-                height,
-                color: slide.defaultElementTextColor || "#000000",
-                paddingTop: 4,
-                paddingRight: 4,
-                paddingBottom: 4,
-                paddingLeft: 4,
-                lineHeight: 1.6, // Slightly more line height for lists
-              } as any
-              break
-
-            default:
-              newElement = {
-                ...baseProps,
-                type: "text",
-                content: `New ${blockDefinition.label}`,
-                fontSize: 18,
-                fontWeight: "normal",
-                textAlign: "center",
-                color: slide.defaultElementTextColor || "#000000",
-                paddingTop: 4,
-                paddingRight: 4,
-                paddingBottom: 4,
-                paddingLeft: 4,
-                lineHeight: 1.4,
-              } as any
-          }
-
-          return {
-            ...slide,
-            elements: [...slide.elements, newElement],
-          }
+        const baseProps = {
+          id: newElementId,
+          x: centerX,
+          y: centerY,
+          width: 90,
+          height: 20,
+          locked: false,
+          zIndex: (slide.elements.length + 1) * 10,
+          opacity: 1,
+          ...(blockDefinition.defaultProps || {}),
         }
-        return slide
-      })
-    })
-  }, [])
 
-  const handleAddSlide = useCallback(() => {
-    setPresentation((prevPresentation: Presentation | null) => {
-      const pres = prevPresentation || []
-      const newSlideId = `slide-${Date.now()}`
-      const newSlideNumber = pres.length + 1
+        let newElement: SlideElement
 
-      const newSlide: Slide = {
-        id: newSlideId,
-        elements: [
-          {
-            id: `${newSlideId}-title`,
-            type: "text",
-            content: `New Slide ${newSlideNumber}`,
-            x: 5,
-            y: 30,
-            width: 90,
-            height: 20,
-            fontSize: 40,
-            fontWeight: "bold",
-            textAlign: "center",
-            color: "#000000",
-            zIndex: 10,
-            locked: false,
-            opacity: 1,
-            paddingTop: 4,
-            paddingRight: 4,
-            paddingBottom: 4,
-            paddingLeft: 4,
-            lineHeight: 1.4,
-          } as any,
-        ],
-        background: {
-          type: "color",
-          value: "#ffffff",
-        },
-        titleForThumbnail: `Slide ${newSlideNumber}`,
-        iconNameForThumbnail: "documentText",
-        defaultElementTextColor: "#000000",
+        // Create different text elements based on block definition
+        let content = "New Text Block"
+        let fontSize = 18
+        let fontWeight = "normal"
+        let textAlign = "center"
+        let height = 20
+
+        // Customize based on block label
+        if (blockDefinition.label === "Title") {
+          content = "New Title"
+          fontSize = 48
+          fontWeight = "bold"
+          height = 25
+        } else if (blockDefinition.label === "Heading 1") {
+          content = "New Heading 1"
+          fontSize = 36
+          fontWeight = "bold"
+          height = 22
+        } else if (blockDefinition.label === "Heading 2") {
+          content = "New Heading 2"
+          fontSize = 28
+          fontWeight = "bold"
+          height = 20
+        } else if (blockDefinition.label === "Paragraph") {
+          content = "New paragraph text. Click to edit this content."
+          fontSize = 16
+          fontWeight = "normal"
+          textAlign = "left"
+          height = 25
+        } else if (blockDefinition.label === "Quote") {
+          content = '"New quote text. Click to edit this inspiring quote."'
+          fontSize = 20
+          fontWeight = "italic"
+          height = 22
+        } else if (blockDefinition.label === "Info Callout") {
+          content = "ℹ️ Important information callout. Click to edit."
+          fontSize = 16
+          fontWeight = "normal"
+          textAlign = "left"
+          height = 20
+        } else if (blockDefinition.label === "Bullet List" || blockDefinition.label === "List") {
+          content = "• First bullet point\n• Second bullet point"
+          fontSize = 16
+          fontWeight = "normal"
+          textAlign = "left"
+          height = 25
+        } else if (blockDefinition.label === "Numbered List") {
+          content = "1. First numbered item\n2. Second numbered item"
+          fontSize = 16
+          fontWeight = "normal"
+          textAlign = "left"
+          height = 25
+        }
+
+        switch (blockDefinition.type) {
+          case "text":
+            newElement = {
+              ...baseProps,
+              type: "text",
+              content,
+              fontSize,
+              fontWeight,
+              textAlign,
+              height,
+              color: slide.defaultElementTextColor || "#000000",
+              paddingTop: 4,
+              paddingRight: 4,
+              paddingBottom: 4,
+              paddingLeft: 4,
+              lineHeight: 1.4,
+            } as any
+            break
+
+          case "image":
+            newElement = {
+              ...baseProps,
+              type: "image",
+              src: (blockDefinition.defaultProps as any)?.src || "https://via.placeholder.com/400x300.png?text=Image",
+              alt: (blockDefinition.defaultProps as any)?.alt || "Image",
+              objectFit: (blockDefinition.defaultProps as any)?.objectFit || "contain",
+              width: blockDefinition.defaultProps?.width || 50,
+              height: blockDefinition.defaultProps?.height || 37.5,
+            } as ImageElementProps
+            break
+
+          case "video":
+            newElement = {
+              ...baseProps,
+              type: "video",
+              src: (blockDefinition.defaultProps as any)?.src || "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+              videoType: (blockDefinition.defaultProps as any)?.videoType || "youtube",
+              controls: (blockDefinition.defaultProps as any)?.controls !== false,
+              width: blockDefinition.defaultProps?.width || 60,
+              height: blockDefinition.defaultProps?.height || 33.75,
+            } as VideoElementProps
+            break
+
+          case "list":
+            newElement = {
+              ...baseProps,
+              type: "text",
+              content,
+              fontSize,
+              fontWeight,
+              textAlign,
+              height,
+              color: slide.defaultElementTextColor || "#000000",
+              paddingTop: 4,
+              paddingRight: 4,
+              paddingBottom: 4,
+              paddingLeft: 4,
+              lineHeight: 1.6, // Slightly more line height for lists
+            } as any
+            break
+
+          default:
+            newElement = {
+              ...baseProps,
+              type: "text",
+              content: `New ${blockDefinition.label}`,
+              fontSize: 18,
+              fontWeight: "normal",
+              textAlign: "center",
+              color: slide.defaultElementTextColor || "#000000",
+              paddingTop: 4,
+              paddingRight: 4,
+              paddingBottom: 4,
+              paddingLeft: 4,
+              lineHeight: 1.4,
+            } as any
+        }
+
+        return {
+          ...slide,
+          elements: [...slide.elements, newElement],
+        }
       }
-
-      const newPresentation = [...pres]
-      const insertAtIndex = currentSlideIndex + 1
-      newPresentation.splice(insertAtIndex, 0, newSlide)
-
-      setCurrentSlideIndex(insertAtIndex)
-      return newPresentation
+      return slide
     })
-  }, [currentSlideIndex])
+    
+    createAction('element_add', `${blockDefinition.label || blockDefinition.type}`, newPresentation, {
+      slideId,
+      elementType: blockDefinition.type
+    })
+  }, [presentation, createAction])
+
+  // Fixed handleAddSlide - insert after current slide with correct numbering
+  const handleAddSlide = useCallback(() => {
+    if (!presentation) return
+    
+    const pres = presentation
+    const newSlideId = `slide-${Date.now()}`
+    const insertAtIndex = currentSlideIndex + 1
+    const newSlideNumber = insertAtIndex + 1 // This will be the correct slide number
+
+    const newSlide: Slide = {
+      id: newSlideId,
+      elements: [
+        {
+          id: `${newSlideId}-title`,
+          type: "text",
+          content: `New Slide ${newSlideNumber}`,
+          x: 5,
+          y: 30,
+          width: 90,
+          height: 20,
+          fontSize: 40,
+          fontWeight: "bold",
+          textAlign: "center",
+          color: "#000000",
+          zIndex: 10,
+          locked: false,
+          opacity: 1,
+          paddingTop: 4,
+          paddingRight: 4,
+          paddingBottom: 4,
+          paddingLeft: 4,
+          lineHeight: 1.4,
+        } as any,
+      ],
+      background: {
+        type: "color",
+        value: "#ffffff",
+      },
+      titleForThumbnail: `Slide ${newSlideNumber}`,
+      iconNameForThumbnail: "documentText",
+      defaultElementTextColor: "#000000",
+    }
+
+    const newPresentation = [...pres]
+    newPresentation.splice(insertAtIndex, 0, newSlide)
+
+    setCurrentSlideIndex(insertAtIndex)
+    
+    createAction('slide_add', `slide ${newSlideNumber}`, newPresentation, {
+      slideId: newSlideId,
+      insertIndex: insertAtIndex
+    })
+  }, [presentation, currentSlideIndex, createAction])
 
   const handleDeleteSlide = useCallback(
     (slideIdToDelete: string) => {
-      if (!window.confirm("Are you sure you want to delete this slide? This action cannot be undone.")) {
+      if (!presentation || presentation.length <= 1) {
+        alert("Cannot delete the last remaining slide.")
         return
       }
 
-      setPresentation((prevPresentation) => {
-        if (!prevPresentation || prevPresentation.length <= 1) {
-          alert("Cannot delete the last remaining slide.")
-          return prevPresentation
-        }
+      const slideToDeleteIndex = presentation.findIndex((s) => s.id === slideIdToDelete)
+      if (slideToDeleteIndex === -1) {
+        return
+      }
 
-        const slideToDeleteIndex = prevPresentation.findIndex((s) => s.id === slideIdToDelete)
-        if (slideToDeleteIndex === -1) {
-          return prevPresentation
-        }
+      const slideToDelete = presentation[slideToDeleteIndex]
+      const newPresentation = presentation.filter((s) => s.id !== slideIdToDelete)
+      let newCalculatedSlideIndex = currentSlideIndex
 
-        const newPresentation = prevPresentation.filter((s) => s.id !== slideIdToDelete)
-        let newCalculatedSlideIndex = currentSlideIndex
+      if (slideToDeleteIndex === currentSlideIndex) {
+        newCalculatedSlideIndex = Math.max(0, slideToDeleteIndex - 1)
+      } else if (slideToDeleteIndex < currentSlideIndex) {
+        newCalculatedSlideIndex = currentSlideIndex - 1
+      }
 
-        if (slideToDeleteIndex === currentSlideIndex) {
-          newCalculatedSlideIndex = Math.max(0, slideToDeleteIndex - 1)
-        } else if (slideToDeleteIndex < currentSlideIndex) {
-          newCalculatedSlideIndex = currentSlideIndex - 1
-        }
+      newCalculatedSlideIndex = Math.min(newCalculatedSlideIndex, newPresentation.length - 1)
+      newCalculatedSlideIndex = Math.max(0, newCalculatedSlideIndex)
 
-        newCalculatedSlideIndex = Math.min(newCalculatedSlideIndex, newPresentation.length - 1)
-        newCalculatedSlideIndex = Math.max(0, newCalculatedSlideIndex)
-
-        setCurrentSlideIndex(newCalculatedSlideIndex)
-        return newPresentation
+      setCurrentSlideIndex(newCalculatedSlideIndex)
+      
+      createAction('slide_delete', `slide "${slideToDelete.titleForThumbnail || 'Untitled'}"`, newPresentation, {
+        slideId: slideIdToDelete,
+        deleteIndex: slideToDeleteIndex
       })
     },
-    [currentSlideIndex],
+    [presentation, currentSlideIndex, createAction],
   )
 
   const handleDeleteElement = useCallback((slideId: string, elementId: string) => {
-    setPresentation((prevPresentation) => {
-      if (!prevPresentation) return null
-      return prevPresentation.map((slide) => {
-        if (slide.id === slideId) {
-          return {
-            ...slide,
-            elements: slide.elements.filter((el) => el.id !== elementId),
-          }
+    if (!presentation) return
+    
+    const newPresentation = presentation.map((slide) => {
+      if (slide.id === slideId) {
+        const elementToDelete = slide.elements.find(el => el.id === elementId)
+        return {
+          ...slide,
+          elements: slide.elements.filter((el) => el.id !== elementId),
         }
-        return slide
-      })
+      }
+      return slide
     })
-  }, [])
+    
+    createAction('element_delete', `element`, newPresentation, {
+      slideId,
+      elementId
+    })
+  }, [presentation, createAction])
+
+  // New function to handle slide reordering
+  const handleSlideReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (!presentation) return
+
+      const newPresentation = [...presentation]
+      const [movedSlide] = newPresentation.splice(fromIndex, 1)
+      newPresentation.splice(toIndex, 0, movedSlide)
+
+      // Update current slide index if needed
+      if (fromIndex === currentSlideIndex) {
+        setCurrentSlideIndex(toIndex)
+      } else if (fromIndex < currentSlideIndex && toIndex >= currentSlideIndex) {
+        setCurrentSlideIndex(currentSlideIndex - 1)
+      } else if (fromIndex > currentSlideIndex && toIndex <= currentSlideIndex) {
+        setCurrentSlideIndex(currentSlideIndex + 1)
+      }
+
+      createAction('slide_reorder', `slides ${fromIndex + 1} to ${toIndex + 1}`, newPresentation, {
+        fromIndex,
+        toIndex
+      })
+    },
+    [presentation, currentSlideIndex, createAction],
+  )
 
   // Updated save handler - this replaces the console.log
   const handleSaveAndShowJson = useCallback(async () => {
@@ -554,9 +732,10 @@ const PresentationsPage: React.FC = () => {
 
     console.log("Saving current presentation state:", JSON.stringify(presentation, null, 2))
 
-    // Save the current edited presentation to backend
-    await savePresentationToBackend(presentation)
-  }, [presentation, requestId])
+    // Save just the slides array to backend (the service expects slides, not full Presentation object)
+    // Don't show the top notification since PresentationEditor has its own overlay and toast
+    await savePresentationToBackend(presentation, false)
+  }, [presentation])
 
   // Loading state (only for initial check)
   if (isLoading) {
@@ -634,43 +813,7 @@ const PresentationsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Show save status */}
-      {(isSaving || saveStatus.type) && (
-        <div
-          className={`border-b p-3 ${
-            saveStatus.type === "success"
-              ? "bg-green-50 border-green-200"
-              : saveStatus.type === "error"
-                ? "bg-red-50 border-red-200"
-                : "bg-blue-50 border-blue-200"
-          }`}
-        >
-          <div className="flex items-center justify-center space-x-3">
-            {isSaving && <LoadingSpinner size="sm" text="" className="text-blue-600" />}
-            {saveStatus.type === "success" && (
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-            {saveStatus.type === "error" && (
-              <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
-            <span
-              className={`font-medium ${
-                saveStatus.type === "success"
-                  ? "text-green-800"
-                  : saveStatus.type === "error"
-                    ? "text-red-800"
-                    : "text-blue-800"
-              }`}
-            >
-              {isSaving ? "Saving presentation..." : saveStatus.message}
-            </span>
-          </div>
-        </div>
-      )}
+
 
       {presentation && (
         <PresentationEditor
@@ -686,6 +829,13 @@ const PresentationsPage: React.FC = () => {
           onSaveAndShowJson={handleSaveAndShowJson}
           onOpenRegenerateModal={() => {}}
           onPresentationUpdate={setPresentation}
+          onSlideReorder={handleSlideReorder}
+          // Undo/Redo props
+          canUndo={canUndo}
+          canRedo={canRedo}
+          currentAction={currentAction}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
         />
       )}
     </div>

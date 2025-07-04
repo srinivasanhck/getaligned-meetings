@@ -45,7 +45,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdate, on
       style={{ position: "relative" }} // Ensure content stays within container
     >
       {/* Text Style Dropdown */}
-      <select
+      {/* <select
         value={element.semanticType || "paragraph"}
         onChange={(e) => onUpdate({ semanticType: e.target.value as any })}
         className="text-xs px-1.5 py-1 border border-slate-200 rounded hover:border-slate-300 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white min-w-[80px]"
@@ -58,7 +58,37 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdate, on
         <option value="heading3">Heading 3</option>
         <option value="heading4">Heading 4</option>
         <option value="quote">Quote</option>
-      </select>
+      </select> */}
+
+
+      <div className="h-4 w-px bg-slate-200 mx-1"></div>
+
+      {/* Bold */}
+      <button
+        onClick={() => handleToggleStyle("fontWeight", "bold", "normal")}
+        className={`${commonButtonClass} w-6 h-6 ${element.fontWeight === "bold" ? activeClass : ""}`}
+        title="Bold"
+      >
+        <Bold size={12} />
+      </button>
+
+      {/* Italic */}
+      <button
+        onClick={() => handleToggleStyle("fontStyle", "italic", "normal")}
+        className={`${commonButtonClass} w-6 h-6 ${element.fontStyle === "italic" ? activeClass : ""}`}
+        title="Italic"
+      >
+        <Italic size={12} />
+      </button>
+
+      {/* Underline */}
+      <button
+        onClick={() => handleToggleStyle("textDecoration", "underline", "none")}
+        className={`${commonButtonClass} w-6 h-6 ${element.textDecoration === "underline" ? activeClass : ""}`}
+        title="Underline"
+      >
+        <Underline size={12} />
+      </button>
 
       <div className="h-4 w-px bg-slate-200 mx-1"></div>
 
@@ -115,35 +145,6 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdate, on
           ></div>
         </div>
       </div>
-
-      <div className="h-4 w-px bg-slate-200 mx-1"></div>
-
-      {/* Bold */}
-      <button
-        onClick={() => handleToggleStyle("fontWeight", "bold", "normal")}
-        className={`${commonButtonClass} w-6 h-6 ${element.fontWeight === "bold" ? activeClass : ""}`}
-        title="Bold"
-      >
-        <Bold size={12} />
-      </button>
-
-      {/* Italic */}
-      <button
-        onClick={() => handleToggleStyle("fontStyle", "italic", "normal")}
-        className={`${commonButtonClass} w-6 h-6 ${element.fontStyle === "italic" ? activeClass : ""}`}
-        title="Italic"
-      >
-        <Italic size={12} />
-      </button>
-
-      {/* Underline */}
-      <button
-        onClick={() => handleToggleStyle("textDecoration", "underline", "none")}
-        className={`${commonButtonClass} w-6 h-6 ${element.textDecoration === "underline" ? activeClass : ""}`}
-        title="Underline"
-      >
-        <Underline size={12} />
-      </button>
 
       <div className="h-4 w-px bg-slate-200 mx-1"></div>
 

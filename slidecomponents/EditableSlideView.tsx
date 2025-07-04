@@ -25,6 +25,12 @@ interface EditableSlideViewProps {
   onElementEdit: (elementId: string) => void
   onElementUpdate: (updatedElement: SlideElement) => void
   onElementDelete: (elementId: string) => void
+  previewBackground?: {
+    type: "color" | "gradient" | "image"
+    value: string
+    imageFit?: "cover" | "contain"
+    overlayOpacity?: number
+  } | null
 }
 
 const EditableSlideView: React.FC<EditableSlideViewProps> = ({
@@ -36,6 +42,7 @@ const EditableSlideView: React.FC<EditableSlideViewProps> = ({
   onElementEdit,
   onElementUpdate,
   onElementDelete,
+  previewBackground,
 }) => {
   const slideViewRef = useRef<HTMLDivElement>(null)
   const [containerDimensions, setContainerDimensions] = useState<ParentDimensions | null>(null)
@@ -80,29 +87,32 @@ const EditableSlideView: React.FC<EditableSlideViewProps> = ({
 
   const { elements, background } = slide
 
+  // Use preview background if available, otherwise use slide background
+  const activeBackground = previewBackground || background
+
   const backgroundStyle: React.CSSProperties = {}
   let backgroundClasses = "bg-white"
 
   // Handle different background types
-  if (background.type === "image" && background.value) {
-    backgroundStyle.backgroundImage = `url(${background.value})`
-    backgroundStyle.backgroundSize = background.imageFit || "cover"
+  if (activeBackground.type === "image" && activeBackground.value) {
+    backgroundStyle.backgroundImage = `url(${activeBackground.value})`
+    backgroundStyle.backgroundSize = activeBackground.imageFit || "cover"
     backgroundStyle.backgroundPosition = "center"
     backgroundStyle.backgroundRepeat = "no-repeat"
     backgroundClasses = ""
-  } else if (background.type === "gradient" && background.value) {
+  } else if (activeBackground.type === "gradient" && activeBackground.value) {
     // Handle gradient backgrounds
-    backgroundStyle.background = background.value
+    backgroundStyle.background = activeBackground.value
     backgroundClasses = ""
-  } else if (background.type === "color" && background.value.startsWith("bg-")) {
-    backgroundClasses = background.value
-  } else if (background.type === "color") {
-    backgroundStyle.backgroundColor = background.value || "#FFFFFF"
+  } else if (activeBackground.type === "color" && activeBackground.value.startsWith("bg-")) {
+    backgroundClasses = activeBackground.value
+  } else if (activeBackground.type === "color") {
+    backgroundStyle.backgroundColor = activeBackground.value || "#FFFFFF"
     backgroundClasses = ""
   }
 
   // Debug log to check background data
-  console.log("EditableSlideView - Background data:", background)
+  console.log("EditableSlideView - Background data:", activeBackground)
 
   return (
     <div
@@ -118,15 +128,15 @@ const EditableSlideView: React.FC<EditableSlideViewProps> = ({
       role="group"
     >
       {/* Overlay for image backgrounds - Fixed condition */}
-      {background.type === "image" &&
-        background.value &&
-        background.overlayOpacity !== undefined &&
-        background.overlayOpacity !== null &&
-        background.overlayOpacity > 0 && (
+      {activeBackground.type === "image" &&
+        activeBackground.value &&
+        activeBackground.overlayOpacity !== undefined &&
+        activeBackground.overlayOpacity !== null &&
+        activeBackground.overlayOpacity > 0 && (
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              backgroundColor: `rgba(0, 0, 0, ${background.overlayOpacity})`,
+              backgroundColor: `rgba(0, 0, 0, ${activeBackground.overlayOpacity})`,
               zIndex: 1,
             }}
           />

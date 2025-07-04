@@ -147,7 +147,7 @@ export const DEFAULT_BLOCK_DEFINITIONS: BlockDefinition[] = [
   // List Category
   { id: 'list-bullet', type: 'text', label: 'Bullet List', icon: 'listBullet', category: 'List', listType: 'bullet', defaultProps: { content: "Item 1<br>Item 2", isList: true, fontSize: 18, fontWeight: 'normal', height: 15, color: DEFAULT_THEME.bodyTextColor } as Partial<TextElementProps> },
   { id: 'list-number', type: 'text', label: 'Numbered List', icon: 'listNumber', category: 'List', listType: 'number', defaultProps: { content: "First item<br>Second item", isList: true, fontSize: 18, fontWeight: 'normal', height: 15, color: DEFAULT_THEME.bodyTextColor } as Partial<TextElementProps> },
-  { id: 'list-todo', type: 'text', label: 'To-do List', icon: 'listTodo', category: 'List', listType: 'todo', defaultProps: { content: "[ ] Task 1<br>[ ] Task 2", isList: true, fontSize: 18, fontWeight: 'normal', height: 15, color: DEFAULT_THEME.bodyTextColor } as Partial<TextElementProps> },
+  // { id: 'list-todo', type: 'text', label: 'To-do List', icon: 'listTodo', category: 'List', listType: 'todo', defaultProps: { content: "[ ] Task 1<br>[ ] Task 2", isList: true, fontSize: 18, fontWeight: 'normal', height: 15, color: DEFAULT_THEME.bodyTextColor } as Partial<TextElementProps> },
 
   // Callouts (Text Category or own category)
   { id: 'callout-info', type: 'text', label: 'Info Callout', icon: 'calloutInfo', category: 'Text', calloutType: 'info', defaultProps: { content: "Important information.", height: 18, fontSize: 16, fontWeight: 'normal', color: DEFAULT_THEME.bodyTextColor } as Partial<TextElementProps> },

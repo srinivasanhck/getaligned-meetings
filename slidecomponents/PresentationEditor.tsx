@@ -8,7 +8,7 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Code,
+  Save,
   Plus,
   Edit3,
   PlusCircle,
@@ -20,19 +20,25 @@ import {
   Settings,
   Palette,
 } from "lucide-react"
-import type { Presentation, Slide, SlideElement, BlockDefinition } from "@/types"
+import type { Slide, SlideElement, BlockDefinition, ImageElementProps, VideoElementProps } from "@/types"
 import EditableSlideView from "./EditableSlideView"
 import SlideThumbnail from "./SlideThumbnail"
 import PropertyInspectorPanel from "./editing/PropertyInspectorPanel"
 import BlockPalette from "./editing/BlockPalette"
+import ImageUploadModal from "./editing/ImageUploadModal"
+import VideoUploadModal from "./editing/VideoUploadModal"
 import ChatMessageRenderer from "./ChatMessageRenderer"
 import { chatService } from "./chatService"
 import { convertApiSlideToInternalSlide } from "./slideConverter"
 import CustomSelect from "./CustomSelect"
 import BackgroundModal from "@/components/ui/background-modal"
+import DeleteConfirmationModal from "@/components/ui/delete-confirmation-modal"
+import UndoRedoToolbar from "@/components/ui/UndoRedoToolbar"
+import type { HistoryAction } from "@/hooks/useUndoRedo"
+import { useToast } from "@/components/ui/toast"
 
 interface PresentationEditorProps {
-  presentation: Presentation
+  presentation: Slide[]
   currentSlideIndex: number
   onSetCurrentSlideIndex: (index: number) => void
   onElementUpdate: (slideId: string, updatedElement: SlideElement) => void
@@ -43,7 +49,14 @@ interface PresentationEditorProps {
   onDeleteElement: (slideId: string, elementId: string) => void
   onSaveAndShowJson: () => void
   onOpenRegenerateModal: (slideId: string) => void
-  onPresentationUpdate?: (updatedPresentation: Presentation) => void // New prop for updating entire presentation
+  onPresentationUpdate?: (updatedPresentation: Slide[]) => void
+  onSlideReorder?: (fromIndex: number, toIndex: number) => void
+  // Undo/Redo props
+  canUndo?: boolean
+  canRedo?: boolean
+  currentAction?: HistoryAction | null
+  onUndo?: () => void
+  onRedo?: () => void
 }
 
 const LEFT_PANEL_WIDTH_OPEN = "200px"
@@ -63,14 +76,23 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
   onSaveAndShowJson,
   onOpenRegenerateModal,
   onPresentationUpdate,
+  onSlideReorder,
+  // Undo/Redo props
+  canUndo = false,
+  canRedo = false,
+  currentAction = null,
+  onUndo,
+  onRedo,
 }) => {
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
   const [editingElementId, setEditingElementId] = useState<string | null>(null)
   const [isBlockPaletteOpen, setIsBlockPaletteOpen] = useState(false)
+  const [isImageUploadModalOpen, setIsImageUploadModalOpen] = useState(false)
+  const [isVideoUploadModalOpen, setIsVideoUploadModalOpen] = useState(false)
   const [isBackgroundModalOpen, setIsBackgroundModalOpen] = useState(false)
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true)
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const [isContentToolsOpen, setIsContentToolsOpen] = useState(true) // New state for Content Tools collapse
+  const [isContentToolsOpen, setIsContentToolsOpen] = useState(true)
   const [chatMessages, setChatMessages] = useState<
     Array<{ id: string; text: string; isUser: boolean; timestamp: Date; isSuccess?: boolean }>
   >([])
@@ -81,6 +103,27 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false)
+  
+  // Save state
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Toast hook
+  const { showToast } = useToast()
+
+  // Drag and drop state
+  const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  // Delete confirmation modal state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean
+    slideId: string
+    slideIndex: number
+  }>({
+    isOpen: false,
+    slideId: "",
+    slideIndex: -1,
+  })
 
   const currentSlide = presentation[currentSlideIndex]
   const editorContainerRef = useRef<HTMLDivElement>(null)
@@ -106,6 +149,23 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
     setEditingElementId(null)
   }, [])
 
+  // Save wrapper with loading overlay and toast
+  const handleSave = useCallback(async () => {
+    if (isSaving) return
+    
+    setIsSaving(true)
+    
+    try {
+      await onSaveAndShowJson()
+      showToast("Slides saved successfully", "success")
+    } catch (error) {
+      console.error("Save error:", error)
+      showToast("Failed to save slides", "error")
+    } finally {
+      setIsSaving(false)
+    }
+  }, [isSaving, onSaveAndShowJson, showToast])
+
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (chatMessagesRef.current) {
@@ -116,14 +176,18 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
   // Add escape key handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && editingElementId) {
-        handleExitEditing()
+      if (e.key === "Escape") {
+        if (editingElementId) {
+          handleExitEditing()
+        } else if (deleteConfirmation.isOpen) {
+          setDeleteConfirmation({ isOpen: false, slideId: "", slideIndex: -1 })
+        }
       }
     }
 
     document.addEventListener("keydown", handleKeyDown)
     return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [editingElementId, handleExitEditing])
+  }, [editingElementId, handleExitEditing, deleteConfirmation.isOpen])
 
   const handleElementUpdate = useCallback(
     (updatedElement: SlideElement) => {
@@ -150,7 +214,21 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
   const handleAddElement = useCallback(
     (blockDefinition: BlockDefinition) => {
       if (currentSlide) {
-        // Add element to current slide
+        // Special handling for image blocks
+        if (blockDefinition.type === "image") {
+          setIsImageUploadModalOpen(true)
+          setIsBlockPaletteOpen(false)
+          return
+        }
+
+        // Special handling for video blocks
+        if (blockDefinition.type === "video") {
+          setIsVideoUploadModalOpen(true)
+          setIsBlockPaletteOpen(false)
+          return
+        }
+
+        // Add element to current slide for non-image/video blocks
         onAddElement(currentSlide.id, blockDefinition)
 
         // Close the palette
@@ -175,27 +253,113 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
     }
   }, [currentSlide, selectedElementId, handleElementDelete])
 
+  // Background preview state
+  const [previewBackground, setPreviewBackground] = useState<{
+    type: "color" | "gradient" | "image"
+    value: string
+    imageFit?: "cover" | "contain"
+    overlayOpacity?: number
+  } | null>(null)
+
   const handleBackgroundChange = useCallback(
     (background: {
-      type: "color" | "image"
+      type: "color" | "gradient" | "image"
       value: string
       imageFit?: "cover" | "contain"
       overlayOpacity?: number
     }) => {
-      if (currentSlide) {
-        onSlideUpdate({
-          ...currentSlide,
-          background: {
-            type: background.type,
-            value: background.value,
-            imageFit: background.imageFit,
-            overlayOpacity: background.overlayOpacity,
-          },
-        })
-      }
+      // Set preview instead of applying immediately
+      setPreviewBackground(background)
     },
-    [currentSlide, onSlideUpdate],
+    [],
   )
+
+  const handleBackgroundAccept = useCallback(() => {
+    if (currentSlide && previewBackground) {
+      onSlideUpdate({
+        ...currentSlide,
+        background: {
+          type: previewBackground.type,
+          value: previewBackground.value,
+          imageFit: previewBackground.imageFit,
+          overlayOpacity: previewBackground.overlayOpacity,
+        },
+      })
+      setPreviewBackground(null)
+    }
+  }, [currentSlide, previewBackground, onSlideUpdate])
+
+  const handleBackgroundReject = useCallback(() => {
+    setPreviewBackground(null)
+  }, [])
+
+  const handleBackgroundModalOpen = useCallback(() => {
+    // Clear any existing preview when opening modal
+    setPreviewBackground(null)
+    setIsBackgroundModalOpen(true)
+  }, [])
+
+  const handleBackgroundModalClose = useCallback(() => {
+    // Only close the modal, keep the preview background active
+    // User must explicitly accept or reject the changes
+    setIsBackgroundModalOpen(false)
+  }, [])
+
+  // Handle slide deletion with confirmation
+  const handleSlideDeleteClick = useCallback((slideId: string, slideIndex: number) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      slideId,
+      slideIndex,
+    })
+  }, [])
+
+  const handleConfirmSlideDelete = useCallback(() => {
+    if (deleteConfirmation.slideId) {
+      onDeleteSlide(deleteConfirmation.slideId)
+    }
+    setDeleteConfirmation({ isOpen: false, slideId: "", slideIndex: -1 })
+  }, [deleteConfirmation.slideId, onDeleteSlide])
+
+  const handleCancelSlideDelete = useCallback(() => {
+    setDeleteConfirmation({ isOpen: false, slideId: "", slideIndex: -1 })
+  }, [])
+
+  // Drag and drop handlers
+  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+    setDraggedSlideIndex(index)
+    e.dataTransfer.effectAllowed = "move"
+    e.dataTransfer.setData("text/html", "")
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    setDragOverIndex(index)
+  }, [])
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverIndex(null)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, dropIndex: number) => {
+      e.preventDefault()
+
+      if (draggedSlideIndex !== null && draggedSlideIndex !== dropIndex && onSlideReorder) {
+        onSlideReorder(draggedSlideIndex, dropIndex)
+      }
+
+      setDraggedSlideIndex(null)
+      setDragOverIndex(null)
+    },
+    [draggedSlideIndex, onSlideReorder],
+  )
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedSlideIndex(null)
+    setDragOverIndex(null)
+  }, [])
 
   const fetchConversationHistory = useCallback(async () => {
     if (hasLoadedHistory) return // Don't fetch if already loaded
@@ -373,6 +537,85 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
 
   const selectedElement = currentSlide?.elements.find((el) => el.id === selectedElementId)
 
+  // Handle image selection from upload modal
+  const handleImageSelect = useCallback(
+    (imageUrl: string, altText?: string) => {
+      if (currentSlide) {
+        // Create image block definition
+        const imageBlockDefinition: BlockDefinition = {
+          id: 'uploaded-image',
+          type: 'image',
+          label: 'Uploaded Image',
+          icon: 'photo',
+          category: 'Media',
+          defaultProps: {
+            src: imageUrl,
+            alt: altText || 'Uploaded image',
+            width: 50,
+            height: 37.5,
+            objectFit: 'contain'
+          } as Partial<ImageElementProps>
+        }
+
+        // Add the image element to the slide
+        onAddElement(currentSlide.id, imageBlockDefinition)
+
+        // Close the modal
+        setIsImageUploadModalOpen(false)
+
+        // Auto-select the new element after a brief delay
+        setTimeout(() => {
+          const newestElement = currentSlide.elements[currentSlide.elements.length]
+          if (newestElement) {
+            setSelectedElementId(newestElement.id)
+          }
+        }, 200)
+      }
+    },
+    [currentSlide, onAddElement]
+  )
+
+  // Handle video selection from upload modal
+  const handleVideoSelect = useCallback(
+    (videoUrl: string, altText?: string) => {
+      if (currentSlide) {
+        // Create video block definition
+        const videoBlockDefinition: BlockDefinition = {
+          id: 'uploaded-video',
+          type: 'video',
+          label: 'Uploaded Video',
+          icon: 'video',
+          category: 'Media',
+          defaultProps: {
+            src: videoUrl,
+            alt: altText || 'Uploaded video',
+            width: 60,
+            height: 33.75, // 16:9 aspect ratio
+            controls: true,
+            videoType: 'direct'
+          } as Partial<VideoElementProps>
+        }
+
+        // Add the video element to the slide
+        onAddElement(currentSlide.id, videoBlockDefinition)
+
+        // Close the modal
+        setIsVideoUploadModalOpen(false)
+
+        // Auto-select the new element after a brief delay
+        setTimeout(() => {
+          const newestElement = currentSlide.elements[currentSlide.elements.length]
+          if (newestElement) {
+            setSelectedElementId(newestElement.id)
+          }
+        }, 200)
+      }
+    },
+    [currentSlide, onAddElement]
+  )
+
+
+
   return (
     <div className="h-screen flex flex-col bg-slate-100 text-slate-800 overflow-hidden">
       {/* Header */}
@@ -390,13 +633,31 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={onSaveAndShowJson}
-          className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium"
-        >
-          <Code className="w-4 h-4" />
-          <span>Save</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          {/* Undo/Redo Buttons */}
+          {onUndo && onRedo && (
+            <UndoRedoToolbar
+              canUndo={canUndo}
+              canRedo={canRedo}
+              currentAction={currentAction}
+              onUndo={onUndo}
+              onRedo={onRedo}
+              className="mr-2"
+            />
+          )}
+          
+          {/* Save Button */}
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white rounded-md transition-colors text-sm font-medium"
+            title="Save presentation"
+          >
+            <Save className="w-4 h-4" />
+            <span>{isSaving ? "Saving..." : "Save"}</span>
+          </button>
+
+        </div>
       </div>
 
       {/* Main Content Area */}
@@ -412,7 +673,7 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
                 <h3 className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Slides</h3>
                 <button
                   onClick={onAddSlide}
-                  className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors text-sm font-medium"
+                  className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium shadow-sm"
                 >
                   <Plus className="w-4 h-4" />
                   <span>New Slide</span>
@@ -420,7 +681,18 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                 {presentation.map((slide, index) => (
-                  <div key={slide.id} className="relative group">
+                  <div
+                    key={slide.id}
+                    className={`relative group ${dragOverIndex === index ? "border-t-2 border-blue-500" : ""} ${
+                      draggedSlideIndex === index ? "opacity-50" : ""
+                    }`}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, index)}
+                    onDragEnd={handleDragEnd}
+                  >
                     <SlideThumbnail
                       slide={slide}
                       index={index}
@@ -431,7 +703,7 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          onDeleteSlide(slide.id)
+                          handleSlideDeleteClick(slide.id, index)
                         }}
                         className="absolute top-1 right-1 p-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
                         title="Delete slide"
@@ -439,6 +711,12 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
                         <X className="w-3 h-3" />
                       </button>
                     )}
+                    {/* Drag handle indicator */}
+                    <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-4 h-4 bg-black/20 rounded flex items-center justify-center cursor-move">
+                        <div className="w-2 h-2 bg-white/80 rounded-sm"></div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -455,6 +733,7 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
           <div className="w-full h-full flex items-center justify-center">
             <div
               className="bg-white shadow-lg rounded-lg overflow-hidden"
+              data-slide-export={`slide-${currentSlideIndex}`}
               style={{
                 width: "min(calc(100vh - 200px) * (16/9), calc(100vw - 400px))",
                 height: "min(calc(100vh - 200px), calc((100vw - 400px) * (9/16)))",
@@ -471,7 +750,39 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
                   onElementEdit={handleElementEdit}
                   onElementUpdate={handleElementUpdate}
                   onElementDelete={handleElementDelete}
+                  previewBackground={previewBackground}
                 />
+              )}
+              
+              {/* Background Preview Accept/Reject Buttons */}
+              {previewBackground && (
+                <div className="absolute top-4 right-4 flex gap-2 z-10">
+                  <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-lg border border-slate-200">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs font-medium text-slate-700">Preview mode</span>
+                    <span className="text-xs text-slate-500">• Enter to accept • Esc to reject</span>
+                  </div>
+                  <button
+                    onClick={handleBackgroundAccept}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-lg flex items-center gap-2"
+                    title="Accept changes (Enter)"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Accept
+                  </button>
+                  <button
+                    onClick={handleBackgroundReject}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium shadow-lg flex items-center gap-2"
+                    title="Reject changes (Escape)"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Reject
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -563,7 +874,7 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
 
                         {/* Background Button */}
                         <button
-                          onClick={() => setIsBackgroundModalOpen(true)}
+                          onClick={handleBackgroundModalOpen}
                           className="w-full flex items-center justify-center space-x-3 p-4 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-[1.02] group"
                         >
                           <div className="flex items-center justify-center w-8 h-8 bg-white/20 rounded-full group-hover:bg-white/30 transition-colors">
@@ -589,7 +900,7 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
                 </div>
 
                 {/* Element Properties or Welcome Message */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
                   {selectedElement ? (
                     <div className="p-1">
                       <PropertyInspectorPanel
@@ -780,7 +1091,7 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
                         <div className="flex justify-start pr-2">
                           <div className="max-w-[95%] bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 text-sm">
                             <div className="flex items-center space-x-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                               <span>
                                 {agentType === "agent" ? "AI is updating your slides..." : "AI is thinking..."}
                               </span>
@@ -874,10 +1185,61 @@ const PresentationEditor: React.FC<PresentationEditorProps> = ({
       {/* Background Modal */}
       <BackgroundModal
         isOpen={isBackgroundModalOpen}
-        onClose={() => setIsBackgroundModalOpen(false)}
+        onClose={handleBackgroundModalClose}
         currentBackground={currentSlide?.background || { type: "color", value: "#FFFFFF" }}
         onBackgroundChange={handleBackgroundChange}
       />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteConfirmation.isOpen}
+        onClose={handleCancelSlideDelete}
+        onConfirm={handleConfirmSlideDelete}
+        elementType="Slide"
+        slideNumber={deleteConfirmation.slideIndex + 1}
+        message={`Are you sure you want to delete Slide ${deleteConfirmation.slideIndex + 1}? This action cannot be undone and all content on this slide will be permanently lost.`}
+      />
+
+      {/* Image Upload Modal */}
+      <ImageUploadModal
+        isOpen={isImageUploadModalOpen}
+        onClose={() => setIsImageUploadModalOpen(false)}
+        onImageSelect={handleImageSelect}
+      />
+
+      {/* Video Upload Modal */}
+      <VideoUploadModal
+        isOpen={isVideoUploadModalOpen}
+        onClose={() => setIsVideoUploadModalOpen(false)}
+        onVideoSelect={handleVideoSelect}
+      />
+
+      {/* Save Loading Overlay */}
+      {isSaving && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center space-y-6 max-w-sm mx-4 border border-gray-100">
+            {/* Animated spinner with gradient */}
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-blue-600 border-r-blue-500 rounded-full animate-spin"></div>
+              <div className="absolute top-2 left-2 w-12 h-12 border-2 border-transparent border-t-blue-400 border-r-blue-300 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1s' }}></div>
+            </div>
+            
+            {/* Text with typing animation */}
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">Saving Your Work</h3>
+              <p className="text-gray-600 text-sm animate-pulse">Please wait while we save your presentation...</p>
+            </div>
+            
+            {/* Progress dots */}
+            <div className="flex space-x-2">
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

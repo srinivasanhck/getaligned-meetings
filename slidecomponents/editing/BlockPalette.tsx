@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { X } from "lucide-react"
 
 import type { BlockCategory, BlockDefinition } from "@/types"
 import Icon from "../Icon"
@@ -12,7 +13,7 @@ interface BlockPaletteProps {
 }
 
 const BlockPalette: React.FC<BlockPaletteProps> = ({ onSelectBlock, onClose }) => {
-  const categories: BlockCategory[] = ["Text", "List", "Media", "Layout", "Visuals"]
+  const categories: BlockCategory[] = ["Text", "List", "Media"]
 
   const blocksByCategory: Record<BlockCategory, BlockDefinition[]> = categories.reduce(
     (acc, category) => {
@@ -43,12 +44,12 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({ onSelectBlock, onClose }) =
             onClick={onClose}
             className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors duration-200 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
           >
-            <Icon name="x" className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(85vh-120px)] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
+        <div className="p-6 overflow-y-auto max-h-[calc(85vh-120px)] custom-scrollbar">
           {categories.map(
             (category) =>
               blocksByCategory[category] &&

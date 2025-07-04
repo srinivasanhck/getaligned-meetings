@@ -769,7 +769,7 @@ export default function OutlinePage() {
 
         {/* Template selection and Generate Slides buttons at the bottom */}
         <div className="mt-8 flex justify-center gap-4">
-          <button
+          {/* <button
             onClick={handleOpenTemplatePopup}
             className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
           >
@@ -778,7 +778,7 @@ export default function OutlinePage() {
             <span className="ml-1 text-xs px-2 py-0.5 bg-gray-100 rounded-full">
               {selectedTemplate === "light" ? "Light" : "Dark"}
             </span>
-          </button>
+          </button> */}
 
           <button
             onClick={handleGenerateSlides}
@@ -801,12 +801,12 @@ export default function OutlinePage() {
       </div>
 
       {/* Template Selection Popup */}
-      <TemplateSelectionPopup
+      {/* <TemplateSelectionPopup
         isOpen={isTemplatePopupOpen}
         onClose={handleCloseTemplatePopup}
         onSelectTemplate={handleSelectTemplate}
         selectedTemplate={selectedTemplate || "light"}
-      />
+      /> */}
     </div>
   )
 }

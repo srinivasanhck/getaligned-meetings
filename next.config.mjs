@@ -28,10 +28,10 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
-    // Add the compiler configuration to remove console in production:
-    compiler: {
-      removeConsole: process.env.NEXT_PUBLIC_NODE_ENV === 'production',
-    },
+  // Add the compiler configuration to remove console in production:
+  compiler: {
+    removeConsole: process.env.NEXT_PUBLIC_NODE_ENV === 'production',
+  },
 }
 
 if (userConfig) {

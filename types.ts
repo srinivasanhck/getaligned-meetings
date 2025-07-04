@@ -8,6 +8,7 @@ export interface SlideBackground {
 export interface Slide {
   id: string
   titleForThumbnail?: string
+  iconNameForThumbnail?: string
   elements: SlideElement[]
   background: SlideBackground
   defaultElementTextColor?: string
@@ -15,7 +16,7 @@ export interface Slide {
 
 export interface SlideElement {
   id: string
-  type: "text" | "image" | "chart" | "shape"
+  type: "text" | "image" | "chart" | "shape" | "video" | "divider" | "table" | "button" | "code"
   x: number
   y: number
   width: number
@@ -89,4 +90,70 @@ export interface PresentationRequest {
   status: "pending" | "processing" | "completed" | "failed"
   slides?: Slide[]
   createdAt: string
+}
+
+// Block definitions for the Block Palette
+export type BlockCategory = "Text" | "List" | "Media" | "Layout" | "Visuals" | "Advanced"
+
+export interface BlockDefinition {
+  id: string
+  type: string
+  label: string
+  icon: string
+  category: BlockCategory
+  semanticType?: string
+  listType?: string
+  calloutType?: string
+  shapeType?: string
+  initialTableRows?: number
+  initialTableCols?: number
+  defaultProps?: Partial<SlideElement>
+}
+
+// Additional element types referenced in constants
+export interface VideoElementProps extends SlideElement {
+  type: "video"
+  src: string
+  videoType?: "youtube" | "vimeo" | "direct"
+  controls?: boolean
+}
+
+export interface DividerElementProps extends SlideElement {
+  type: "divider"
+  dividerStyle?: "solid" | "dashed" | "dotted"
+  color?: string
+  thickness?: number
+}
+
+export interface TableElementProps extends SlideElement {
+  type: "table"
+  rows?: number
+  cols?: number
+  data?: any[][]
+}
+
+export interface ButtonElementProps extends SlideElement {
+  type: "button"
+  text: string
+  buttonStyle?: "primary" | "secondary"
+  cornerRadius?: number
+}
+
+export interface CodeElementProps extends SlideElement {
+  type: "code"
+  codeContent: string
+  language?: string
+  theme?: "light" | "dark"
+  showLineNumbers?: boolean
+}
+
+export interface ThemeStyle {
+  name: string
+  accentColorPrimary: string
+  bodyTextColor: string
+  isDarkTheme: boolean
+  overlayStyle: {
+    backgroundColor: string
+  }
+  subtitleTextColor: string
 }
