@@ -263,7 +263,7 @@ const formatTimeAgo = (dateString: string): string => {
   }
 
   const getPresentationTitle = (presentation: SlideRequest): string => {
-    return presentation.slide_json?.metadata?.title || presentation.title || presentation?.slide_json?.presentation[0].titleForThumbnail ||  "Untitled Presentation"
+    return presentation.slide_json?.metadata?.title || presentation.title || presentation?.slide_json?.presentation[0]?.titleForThumbnail ||  "Untitled Presentation"
   }
 
   const getSlideCount = (presentation: SlideRequest): number => {
@@ -281,7 +281,7 @@ const formatTimeAgo = (dateString: string): string => {
       background: firstSlideData.background || { type: "color", value: "#334155" },
       titleForThumbnail: firstSlideData.titleForThumbnail,
       defaultElementTextColor: firstSlideData.defaultElementTextColor,
-    } as Slide
+    } as any
   }
 
   const sortedPresentations = [...presentations].sort((a, b) => {

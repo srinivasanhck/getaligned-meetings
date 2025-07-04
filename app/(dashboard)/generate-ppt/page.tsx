@@ -55,7 +55,7 @@ export default function GeneratePPTPage() {
         const formData = new FormData()
         formData.append("file", file, file.name)
 
-        const response = await fetch("https://api.getaligned.work/ppt/api/v1/files/upload", {
+        const response = await fetch("https://api.getaligned.work/integration/api/v1/files/upload", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
