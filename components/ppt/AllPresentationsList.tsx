@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import PresentationInitialThumbnail from "./PresentationInitialThumbnail"
 import type { Slide } from "@/types"
+import { APIURLINTEGRATION } from "@/lib/utils"
 
 interface SlideRequest {
   id: string
@@ -103,7 +104,7 @@ const AllPresentationsList: React.FC = () => {
         throw new Error("No authentication token found")
       }
 
-      const response = await fetch("https://api.getaligned.work/integration/api/user-slide-requests", {
+      const response = await fetch(`${APIURLINTEGRATION}/user-slide-requests`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -134,10 +135,6 @@ const AllPresentationsList: React.FC = () => {
   const handleDeletePresentation = async (presentationId: string, event: React.MouseEvent) => {
     event.stopPropagation()
 
-    // Confirm deletion
-    if (!window.confirm("Are you sure you want to delete this presentation? This action cannot be undone.")) {
-      return
-    }
 
     try {
       setDeletingIds((prev) => new Set(prev).add(presentationId))
@@ -148,7 +145,7 @@ const AllPresentationsList: React.FC = () => {
         throw new Error("No authentication token found")
       }
 
-      const response = await fetch(`https://api.getaligned.work/integration/api/v1/slides/${presentationId}`, {
+      const response = await fetch(`${APIURLINTEGRATION}/v1/slides/${presentationId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,

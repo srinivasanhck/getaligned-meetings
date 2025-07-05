@@ -19,11 +19,11 @@ import {
 } from "lucide-react"
 import { fetchEmailTemplate, type EmailTemplate } from "@/services/emailService"
 import { useToast } from "@/components/ui/toast"
-import { cn } from "@/lib/utils"
+import { APIURL, cn } from "@/lib/utils"
 import type { MeetingDetails } from "@/types/meetingDetails"
 import GmailAccessPopup from "@/components/auth/GmailAccessPopup"
 import { getToken } from "@/services/authService"
-import { APIURL } from "@/config"
+
 
 // Add these imports at the top
 import EmailTemplateSidebar from "@/components/dashboard/EmailTemplateSidebar"

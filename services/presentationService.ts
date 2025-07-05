@@ -1,8 +1,7 @@
 import { getToken } from "@/services/authService"
 import type { Slide, SlideElement, TextElementProps, ImageElementProps, SlideBackground, Presentation } from "@/types"
 import { DYNAMIC_BACKGROUND_COLORS } from "@/constants"
-
-const API_BASE_URL = "https://api.getaligned.work/integration/api"
+import { APIURLINTEGRATION } from "@/lib/utils"
 
 export interface SlideGenerationRequest {
   contentTopic: string
@@ -587,7 +586,7 @@ export const presentationService = {
         throw new Error("Authentication token not found. Please log in again.")
       }
 
-      const response = await fetch(`${API_BASE_URL}/get_slide_request/${requestId}`, {
+      const response = await fetch(`${APIURLINTEGRATION}/get_slide_request/${requestId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -620,7 +619,7 @@ export const presentationService = {
         throw new Error("Authentication token not found. Please log in again.")
       }
 
-      const response = await fetch(`${API_BASE_URL}/generate_slide_content`, {
+      const response = await fetch(`${APIURLINTEGRATION}/generate_slide_content`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -720,7 +719,7 @@ export const presentationService = {
         totalElements: presentation.reduce((sum, slide) => sum + slide.elements.length, 0),
       })
 
-      const response = await fetch(`${API_BASE_URL}/update_slide_data/${requestId}`, {
+      const response = await fetch(`${APIURLINTEGRATION}/update_slide_data/${requestId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -749,7 +748,7 @@ export const presentationService = {
       const formData = new FormData()
       formData.append("file", file, file.name)
 
-      const response = await fetch("https://api.getaligned.work/integration/api/v1/files/upload", {
+      const response = await fetch(`${APIURLINTEGRATION}/v1/files/upload`, {
         method: "POST",
         body: formData,
       })

@@ -13,6 +13,7 @@ import { setTitle, setOutline, setIsGeneratingOutline } from "@/lib/redux/featur
 import { useRouter } from "next/navigation"
 import { getToken } from "@/services/authService"
 import AllPresentationsList from "@/components/ppt/AllPresentationsList"
+import { APIURLINTEGRATION } from "@/lib/utils"
 
 export default function GeneratePPTPage() {
   const dispatch = useAppDispatch()
@@ -55,7 +56,7 @@ export default function GeneratePPTPage() {
         const formData = new FormData()
         formData.append("file", file, file.name)
 
-        const response = await fetch("https://api.getaligned.work/integration/api/v1/files/upload", {
+        const response = await fetch(`${APIURLINTEGRATION}/v1/files/upload`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -136,7 +137,7 @@ export default function GeneratePPTPage() {
 
       console.log("Sending request with body:", requestBody)
 
-      const response = await fetch(`https://api.getaligned.work/integration/api/generate_presentation_outline`, {
+      const response = await fetch(`${APIURLINTEGRATION}/generate_presentation_outline`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

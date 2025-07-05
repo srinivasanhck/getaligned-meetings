@@ -1,3 +1,4 @@
+import { APIURLINTEGRATION } from "@/lib/utils"
 import { getToken } from "@/services/authService"
 const API_PPT_URL = "https://api.getaligned.work/ppt"
 export interface Slide {
@@ -57,8 +58,7 @@ export const pptService = {
 
       console.log("Sending request to initiate slide generation:", request)
 
-      // const response = await fetch(`https://api.getaligned.work/ppt/api/v1/slides/initiate`, {
-      const response = await fetch(`https://api.getaligned.work/integration/api/v1/slides/initiate`, {
+      const response = await fetch(`${APIURLINTEGRATION}/v1/slides/initiate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

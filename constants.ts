@@ -2,9 +2,6 @@
 import { IconName } from "./slidecomponents/Icon";
 import { BlockDefinition, TextElementProps, ImageElementProps, ShapeElementProps, TableElementProps, VideoElementProps, DividerElementProps, ButtonElementProps, CodeElementProps, ThemeStyle } from "@/types";
 
-export const APP_TITLE = "AI Presentation Generator";
-export const GEMINI_TEXT_MODEL = "gemini-2.5-flash-preview-04-17";
-export const GEMINI_IMAGE_MODEL = "imagen-3.0-generate-002";
 
 export const DEFAULT_PROMPT = "Create a 5-slide presentation on the future of renewable energy. Focus on solar, wind, and geothermal. Include a title slide, one slide for each energy type, and a concluding slide with a call to action.";
 

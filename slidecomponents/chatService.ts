@@ -1,6 +1,5 @@
+import { APIURLINTEGRATION } from "@/lib/utils"
 import { getToken } from "@/services/authService"
-
-const API_BASE_URL = "https://api.getaligned.work/integration/api"
 
 export interface ChatRequest {
   slide_requests_id: string
@@ -69,7 +68,7 @@ export const chatService = {
 
       console.log("Sending chat request:", request)
 
-      const response = await fetch(`${API_BASE_URL}/chat_with_ppt`, {
+      const response = await fetch(`${APIURLINTEGRATION}/chat_with_ppt`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -102,7 +101,7 @@ export const chatService = {
 
       console.log("Fetching conversation history for requestId:", requestId)
 
-      const response = await fetch(`${API_BASE_URL}/conversation_history/${requestId}`, {
+      const response = await fetch(`${APIURLINTEGRATION}/conversation_history/${requestId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

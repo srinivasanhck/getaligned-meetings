@@ -1,12 +1,5 @@
 import { getToken } from "@/services/authService"
-
-// const API_BASE_URL = "https://api.getaligned.work/ppt"
-// export const API_BASE_URL = "http://34.93.82.234:8086"
-export const API_BASE_URL = "http://34.47.133.11:8086"
-
-// const CORE_API_BASE_URL = "https://api.getaligned.work/core"
-// const CORE_API_BASE_URL = "https://34.93.82.234:8080"
-const CORE_API_BASE_URL = "http://34.47.133.11:8080"
+import { APIURL, APIURLINTEGRATION } from "./utils";
 
 
   const AUTH_TOKEN = getToken();
@@ -114,7 +107,7 @@ export interface FileUploadResponse {
 
 export async function initiatePPTGeneration(): Promise<InitiatePPTResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/slides/initiate`, {
+    const response = await fetch(`${APIURLINTEGRATION}/api/v1/slides/initiate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -136,7 +129,7 @@ export async function initiatePPTGeneration(): Promise<InitiatePPTResponse> {
 
 export async function generatePPTSlides(requestId: string): Promise<GeneratePPTResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/slides/generate?id=${requestId}`, {
+    const response = await fetch(`${APIURLINTEGRATION}/api/v1/slides/generate?id=${requestId}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -160,7 +153,7 @@ export async function editSlideContent(editRequest: EditContentRequest): Promise
   try {
     console.log("Sending edit request:", editRequest)
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/slides/content/edit-text`, {
+    const response = await fetch(`${APIURLINTEGRATION}/api/v1/slides/content/edit-text`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -186,7 +179,7 @@ export async function saveSlides(requestId: string, slidesData: SaveSlidesReques
   try {
     console.log("Saving slides to backend:", { requestId, slidesData })
 
-    const response = await fetch(`${CORE_API_BASE_URL}/api/v1/ppt/mindmap/slides?id=${requestId}`, {
+    const response = await fetch(`${APIURL}/api/v1/ppt/mindmap/slides?id=${requestId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -218,7 +211,7 @@ export async function uploadFile(file: File, filename?: string): Promise<FileUpl
     const uploadFilename = filename || `${Date.now()}_${file.name}`
     formData.append("file", file, uploadFilename)
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/files/upload`, {
+    const response = await fetch(`${APIURLINTEGRATION}/api/v1/files/upload`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${AUTH_TOKEN}`,

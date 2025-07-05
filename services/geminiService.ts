@@ -14,9 +14,7 @@ import {
 } from '../types';
 import { ICON_MAP, DEFAULT_THEME, DYNAMIC_BACKGROUND_COLORS } from '../constants';
 import { IconName } from "../slidecomponents/Icon";
-
-// API base URL
-const TEMPORARY_API_BASE_URL = 'https://api.getaligned.work/integration/api';
+import { APIURLINTEGRATION } from '@/lib/utils';
 
 // Types for raw slide content
 interface RawSlideContent {
@@ -67,7 +65,7 @@ const generatePresentationOutline = async (
   useSearch: boolean
 ): Promise<{outline: PresentationOutline | null, groundingChunks: GroundingChunk[] | null}> => {
   try {
-    const response = await fetch(`${TEMPORARY_API_BASE_URL}/generate_presentation_outline`, {
+    const response = await fetch(`${APIURLINTEGRATION}/generate_presentation_outline`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -105,7 +103,7 @@ async function generateImageWithPrompt(
   onProgress(`Generating image for prompt: "${prompt.substring(0, 40)}..."`);
   
   try {
-    const response = await fetch(`${TEMPORARY_API_BASE_URL}/generate_image`, {
+    const response = await fetch(`${APIURLINTEGRATION}/generate_image`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -168,7 +166,7 @@ async function* generateRawSlideContentStream(
   }
 ): AsyncGenerator<Partial<RawSlideContent>, void, undefined> {
   try {
-    const response = await fetch(`${TEMPORARY_API_BASE_URL}/generate_slide_content`, {
+    const response = await fetch(`${APIURLINTEGRATION}/generate_slide_content`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -626,7 +624,7 @@ export const regenerateSingleSlide = async (
   onProgress(`Regenerating slide: ${currentSlide.titleForThumbnail || currentSlide.id}...`);
 
   try {
-    const response = await fetch(`${TEMPORARY_API_BASE_URL}/regenerate_slide`, {
+    const response = await fetch(`${APIURLINTEGRATION}/regenerate_slide`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
